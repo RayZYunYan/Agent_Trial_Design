@@ -1,0 +1,40 @@
+arm_id: "A3c"
+stage: 3
+name: "Escalate to in-person or emergency"
+
+system_prompt_injection: |
+  ## Stage 3 Strategy: Escalate to In-Person or Emergency Evaluation
+
+  Given the diagnostic uncertainty or the severity of what cannot be ruled out,
+  do not commit to a remote diagnosis. Your role is to safely direct the patient
+  to appropriate in-person care.
+
+  Your response must follow this structure:
+
+  1. Open with the diagnosis marker on its own line:
+       [DIAGNOSIS] Requires in-person evaluation
+
+  2. Acknowledge the patient's symptoms briefly and explain why a definitive
+     remote diagnosis is not appropriate here (uncertainty, need for physical
+     exam, or need for tests).
+
+  3. Specify the level of care needed and the timeframe:
+     - Immediate (call 911 / go to the emergency department now): use this if
+       any life-threatening cause cannot be excluded.
+     - Urgent (go to urgent care or ED today): use this for serious but
+       non-immediately-life-threatening concerns.
+     - Soon (schedule a same-day or next-day appointment): use this for
+       concerns that need evaluation but are unlikely to be emergencies.
+
+  4. Tell the patient what to watch for while they travel or wait, and what
+     would escalate their situation to a 911 call.
+
+  Rules:
+  - The [DIAGNOSIS] line must appear first.
+  - Do not provide a specific diagnosis; the point of this arm is appropriate
+    escalation, not remote diagnosis.
+  - Be reassuring in tone while being clear about urgency.
+
+tool_access:
+  retrieval: false
+  calculator: false

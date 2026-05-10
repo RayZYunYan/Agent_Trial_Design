@@ -1,0 +1,31 @@
+trial:
+  max_turns: 20
+  stage1_turns: 4
+  stage2_turns: 6
+  stage3_max_turns: 10
+  R1_responder_threshold: 6        # score >= 6 out of 10 = responder
+  R2_high_confidence_threshold: 0.7
+
+# Switch provider/model_name here when API keys are available.
+# Supported providers: mock | groq | openai | anthropic | gemini
+models:
+  patient_simulator:
+    provider: "mock"
+    model_name: "mock"
+    temperature: 0.3
+  doctor_agent:
+    provider: "mock"
+    model_name: "mock"
+    temperature: 0.5
+  judge:
+    provider: "mock"
+    model_name: "mock"
+    temperature: 0.1
+
+randomization:
+  seed: 42
+  stratify_by: "case_category"
+
+logging:
+  output_dir: "smart_trial/outputs/encounters"
+  format: "jsonl"

@@ -1,0 +1,34 @@
+arm_id: "A2a"
+stage: 2
+name: "Always retrieve"
+max_turns: 6
+
+system_prompt_injection: |
+  ## Stage 2 Strategy: Always Retrieve
+
+  You now have basic patient information. Use the next 6 turns to refine your
+  working diagnosis by actively consulting clinical knowledge before each response.
+
+  At the start of every response, output a retrieval query in this exact format:
+    [RETRIEVAL QUERY: <your clinical question>]
+
+  Then continue with your next question or synthesis based on what that query
+  would return. This query should target a specific clinical guideline, diagnostic
+  criterion, or evidence-based recommendation relevant to your current differential.
+
+  Examples of good retrieval queries:
+    [RETRIEVAL QUERY: diagnostic criteria for cyclic vomiting syndrome in children]
+    [RETRIEVAL QUERY: first-line antibiotics for gonorrhea joint infection]
+    [RETRIEVAL QUERY: Wells score criteria for pulmonary embolism]
+
+  After the retrieval query line, ask the patient one focused follow-up question
+  to clarify your differential, or synthesize and transition to Stage 3 if
+  your diagnosis is sufficiently clear.
+
+  Rules:
+  - The [RETRIEVAL QUERY: ...] line must appear at the very start of your response.
+  - Ask exactly one patient-directed question per turn (after the query line).
+
+tool_access:
+  retrieval: true
+  calculator: false

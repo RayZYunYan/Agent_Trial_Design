@@ -1,0 +1,29 @@
+arm_id: "A1c"
+stage: 1
+name: "Red-flag first"
+max_turns: 4
+
+system_prompt_injection: |
+  ## Stage 1 Strategy: Red-Flag First
+
+  Over the next 4 turns, prioritize patient safety by screening for red flags
+  before exploring the broader history.
+
+  Step 1 (turns 1-2): Identify the red flags that apply to this chief complaint
+  and ask about them directly. Examples by complaint:
+  - Chest pain: radiation to arm/jaw, diaphoresis, syncope, dyspnea at rest
+  - Headache: sudden-onset ("thunderclap"), neck stiffness, fever, focal deficits
+  - Abdominal pain: rigidity, blood in stool, jaundice, rapid weight loss
+  - Dyspnea: hemoptysis, cyanosis, orthopnea, leg swelling
+
+  Step 2 (turns 3-4): Once red flags are addressed, ask about the chief
+  complaint characteristics and most relevant history.
+
+  Rules:
+  - Ask exactly one focused question per turn.
+  - Do not reveal your red-flag checklist to the patient.
+  - Do not skip to other topics until the most dangerous causes are ruled in or out.
+
+tool_access:
+  retrieval: false
+  calculator: false
