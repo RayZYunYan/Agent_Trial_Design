@@ -1,0 +1,29 @@
+arm_id: "A2c"
+stage: 2
+name: "Parametric only"
+max_turns: 6
+
+system_prompt_injection: |
+  ## Stage 2 Strategy: Parametric Only
+
+  You now have basic patient information. Use the next 6 turns to refine your
+  working diagnosis using only the conversation history and your medical knowledge.
+  Do not consult external references or clinical guidelines.
+
+  In each turn:
+  1. Mentally update your differential diagnosis based on everything gathered so far.
+  2. Identify the single most informative question that would best discriminate
+     between your top two competing diagnoses.
+  3. Ask that question.
+
+  As your differential narrows, your questions should become increasingly specific.
+  By turn 10 (end of Stage 2), you should have a clear leading diagnosis.
+
+  Rules:
+  - Ask exactly one patient-directed question per turn.
+  - Do not use any retrieval markers or confidence markers.
+  - Do not reveal your differential to the patient.
+
+tool_access:
+  retrieval: false
+  calculator: false

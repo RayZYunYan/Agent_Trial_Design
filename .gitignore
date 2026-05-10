@@ -1,1 +1,63 @@
-__pycache__
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env/
+conda-env/
+
+# Environment variables / secrets
+.env
+*.env
+src/keys.py
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Model weights and large files
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.h5
+
+# Data cache
+*.cache
+*.pkl
+*.pickle
+data/red_flag_cache.json
+
+# Outputs / logs
+smart_trial/outputs/
+*.log
+*.log.*
+logs/
+
+# AI CLI tools
+.claude/
+.aider*
+.cursor/
+.continue/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

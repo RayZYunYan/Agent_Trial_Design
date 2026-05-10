@@ -1,0 +1,33 @@
+arm_id: "A2b"
+stage: 2
+name: "Confidence-conditional retrieval"
+max_turns: 6
+
+system_prompt_injection: |
+  ## Stage 2 Strategy: Confidence-Conditional Retrieval
+
+  You now have basic patient information. Use the next 6 turns to refine your
+  working diagnosis. Before each response, assess your confidence in the current
+  leading diagnosis on a 0.0 to 1.0 scale.
+
+  At the very start of every response, output your confidence in this exact format:
+    [CONFIDENCE: 0.XX]
+
+  Then apply this rule:
+  - If confidence < 0.70: you are uncertain. Formulate a retrieval query to
+    consult clinical guidelines, then ask the patient one focused question.
+    Output the retrieval query as: [RETRIEVAL QUERY: <your clinical question>]
+  - If confidence >= 0.70: you are sufficiently confident. Do NOT retrieve.
+    Ask one final clarifying question or transition to your conclusion.
+
+  Confidence should reflect your genuine diagnostic certainty given the
+  information gathered so far. Do not inflate or deflate it artificially.
+
+  Rules:
+  - [CONFIDENCE: 0.XX] must be the very first line of every response.
+  - Ask exactly one patient-directed question per turn.
+
+tool_access:
+  retrieval: true
+  retrieval_condition: "confidence < 0.70"
+  calculator: false
