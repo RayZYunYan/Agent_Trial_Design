@@ -6,6 +6,16 @@ trial:
   R1_responder_threshold: 6        # score >= 6 out of 10 = responder
   R2_high_confidence_threshold: 0.7
 
+# Cases: use local JSONL (MediQ-style dev file in repo) or HuggingFace iMEDQA.
+data:
+  source: "local"                   # local | huggingface
+  local:
+    path: "data/all_dev_good.jsonl"
+    max_cases: null                 # null = all lines read
+  huggingface:
+    split: "validation"
+    max_cases: null
+
 # Switch provider/model_name here when API keys are available.
 # Supported providers: mock | groq | openai | anthropic | gemini
 models:
