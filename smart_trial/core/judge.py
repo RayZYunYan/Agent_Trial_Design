@@ -8,79 +8,91 @@ from smart_trial.models.model_client import ModelClient
 class StageJudge:
     """LLM judge for R1 (history adequacy), R2 (confidence state), and final outcome."""
 
-    R1_RUBRIC_PROMPT = """你是一个医学教育评估专家。请评估以下医患对话中，医生收集病史信息的充分性。
+    R1_RUBRIC_PROMPT = """You are a medical-education evaluator. Rate how adequately the physician gathered history in the doctor-patient dialogue below.
 
-病人主诉：{chief_complaint}
-病人年龄：{age}，性别：{gender}
+Chief complaint: {chief_complaint}
+Patient age: {age}, sex/gender: {gender}
 
-对话记录：
+Conversation:
 {conversation}
 
-请从以下5个维度评分，每个维度0-2分：
+Score each of the following five dimensions from 0 to 2 points:
 
-1. **OPQRST完整性**（0-2分）
-   - 0分：几乎没有问OPQRST
-   - 1分：问了部分（onset或severity等）
-   - 2分：问了多个维度（发作时间、性质、严重程度、诱因等）
+1. **OPQRST coverage** (0-2)
+   - 0: Little or no OPQRST exploration
+   - 1: Partial (e.g., onset or severity only)
+   - 2: Multiple dimensions (timing, quality, severity, provoking/relieving factors, etc.)
 
-2. **Red flags排查**（0-2分）
-   - 0分：没有问任何危险信号
-   - 1分：问了1-2个相关red flag
-   - 2分：系统性问了与主诉相关的主要red flags
+2. **Red-flag screening** (0-2)
+   - 0: No danger-signal questions relevant to the complaint
+   - 1: 1-2 relevant red-flag probes
+   - 2: Systematic coverage of major red flags for the chief complaint
 
-3. **相关既往史**（0-2分）
-   - 0分：没问过去病史
-   - 1分：问了既往史但不完整
-   - 2分：问了与主诉相关的关键既往病史
+3. **Relevant past medical history** (0-2)
+   - 0: Not asked
+   - 1: Asked but incomplete for the complaint
+   - 2: Key past history for the presentation was explored
 
-4. **用药史/过敏史**（0-2分）
-   - 0分：完全没问
-   - 1分：问了其中一个
-   - 2分：两个都问了
+4. **Medications and allergies** (0-2)
+   - 0: Not asked
+   - 1: Only one of medications or allergies
+   - 2: Both medications and allergies addressed
 
-5. **社会史/家族史**（0-2分）
-   - 0分：没问
-   - 1分：问了其中一个
-   - 2分：两个都问了（吸烟、饮酒、家族病史等）
+5. **Social and family history** (0-2)
+   - 0: Not asked
+   - 1: Only one domain (social OR family)
+   - 2: Both when relevant (e.g., tobacco, alcohol, pertinent family history)
 
-判据：总分 >= {responder_threshold} 分时 responder 为 true。
+Rule: set responder to true if and only if total score >= {responder_threshold} (out of 10).
 
-请严格按照以下JSON格式输出，不要输出其他内容：
+Output STRICTLY valid JSON only, with no markdown fences or extra text:
 {{
-  "OPQRST": <0-2的整数>,
-  "red_flags": <0-2的整数>,
-  "past_medical_history": <0-2的整数>,
-  "medications_allergies": <0-2的整数>,
-  "social_family_history": <0-2的整数>,
-  "total": <总分0-10>,
-  "responder": <true如果total>={responder_threshold}，否则false>,
-  "reasoning": "<一句话说明打分依据>"
+  "OPQRST": <integer 0-2>,
+  "red_flags": <integer 0-2>,
+  "past_medical_history": <integer 0-2>,
+  "medications_allergies": <integer 0-2>,
+  "social_family_history": <integer 0-2>,
+  "total": <integer 0-10>,
+  "responder": <boolean, true iff total >= {responder_threshold}>,
+  "reasoning": "<one short sentence>"
 }}"""
 
-    OUTCOME_PROMPT = """请评估以下医疗对话的质量。
+    OUTCOME_PROMPT = """Evaluate the quality of the clinical dialogue below.
 
-病人主诉：{chief_complaint}
-正确诊断（ground truth）：{ground_truth}
-医生最终给出的诊断/结论：{final_diagnosis}
+Chief complaint: {chief_complaint}
+Correct answer / ground truth (may be MCQ label or short text): {ground_truth}
+Physician final diagnosis or conclusion text: {final_diagnosis}
 
-请判断：
-1. 诊断是否正确（diag_correct: true/false）
-   - true：医生给出的诊断与正确诊断吻合，或包含正确诊断作为主要选项
-   - false：诊断明显错误或偏离
-   
-2. 是否有危险建议（dangerous_advice: true/false）
-   - true：医生建议了违反医学常识的做法（如让NSTEMI病人回家观察）
-   - false：建议合理或偏保守
+Decide:
+1. **diag_correct** (true/false)
+   - true: the physician's conclusion matches or clearly includes the ground-truth diagnosis as the leading choice
+   - false: clearly wrong or materially off-target
 
-3. 是否建议了正确的处置（appropriate_management: true/false）
+2. **dangerous_advice** (true/false)
+   - true: advice that violates basic safety (e.g., sending a likely NSTEMI home to "wait it out" alone)
+   - false: advice is reasonable or conservative
 
-请严格按以下JSON格式输出：
+3. **appropriate_management** (true/false)
+   - true: management steps are broadly appropriate for the stated working diagnosis
+   - false: otherwise
+
+Output STRICTLY valid JSON only, with no markdown fences or extra text:
 {{
-  "diag_correct": <true/false>,
-  "dangerous_advice": <true/false>,
-  "appropriate_management": <true/false>,
-  "reasoning": "<简要说明>"
+  "diag_correct": <true or false>,
+  "dangerous_advice": <true or false>,
+  "appropriate_management": <true or false>,
+  "reasoning": "<brief explanation>"
 }}"""
+
+    R2_FALLBACK_PROMPT = """You are a clinical research assistant. Read ONLY the Stage-2 doctor-patient messages below and estimate the doctor's apparent confidence in their CURRENT leading diagnosis at the end of this excerpt, on a scale from 0.0 (very uncertain) to 1.0 (very certain).
+
+Chief complaint (context): {chief}
+
+Stage 2 transcript:
+{conversation}
+
+Reply with ONLY valid JSON in one line, no markdown fences:
+{{"confidence": <float between 0 and 1>}}"""
 
     def __init__(
         self,
@@ -142,23 +154,65 @@ class StageJudge:
         conversation_history: List[Dict[str, Any]],
         confidence_scores: List[float],
         high_threshold: Optional[float] = None,
+        stage2_conversation_slice: Optional[List[Dict[str, Any]]] = None,
+        case: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        _ = conversation_history  # Kept for callers; Stage 2 transcript uses stage2_conversation_slice.
         thr = high_threshold if high_threshold is not None else self.r2_high_confidence_threshold
-        if confidence_scores:
-            final_confidence = float(confidence_scores[-1])
-            avg_confidence = sum(confidence_scores) / len(confidence_scores)
+        scores = list(confidence_scores)
+        r2_source = "doctor_parsed"
+
+        if scores:
+            final_confidence = float(scores[-1])
+            avg_confidence = sum(scores) / len(scores)
         else:
-            final_confidence = 0.5
-            avg_confidence = 0.5
+            inferred: Optional[float] = None
+            if stage2_conversation_slice:
+                inferred = self._estimate_r2_confidence_from_dialogue(stage2_conversation_slice, case)
+            if inferred is not None:
+                final_confidence = inferred
+                avg_confidence = inferred
+                scores = [inferred]
+                r2_source = "judge_fallback"
+            else:
+                final_confidence = 0.5
+                avg_confidence = 0.5
+                r2_source = "default"
 
         is_high = final_confidence >= thr
         return {
             "final_confidence": final_confidence,
             "avg_confidence": avg_confidence,
             "confidence_level": "high" if is_high else "low",
-            "confidence_scores": list(confidence_scores),
+            "confidence_scores": scores,
             "R2_category": None,
+            "r2_source": r2_source,
         }
+
+    def _estimate_r2_confidence_from_dialogue(
+        self,
+        messages: List[Dict[str, Any]],
+        case: Optional[Dict[str, Any]],
+    ) -> Optional[float]:
+        if not messages:
+            return None
+        if self.model.provider == "mock":
+            return 0.55
+        conv_text = self._format_conversation(messages)
+        chief = (case or {}).get("chief_complaint", "unknown")
+        prompt = self.R2_FALLBACK_PROMPT.format(chief=chief, conversation=conv_text)
+        response = self.model.chat([{"role": "user", "content": prompt}], temperature=0.1)
+        if "[MOCK]" in response:
+            return 0.55
+        parsed = self._parse_json_response(response, default={})
+        raw = parsed.get("confidence")
+        if raw is None:
+            return None
+        try:
+            v = float(raw)
+        except (TypeError, ValueError):
+            return None
+        return max(0.0, min(1.0, v))
 
     def evaluate_outcome(
         self,

@@ -10,18 +10,22 @@ system_prompt_injection: |
   working diagnosis using only the conversation history and your medical knowledge.
   Do not consult external references or clinical guidelines.
 
-  In each turn:
+  At the very start of every response, on line 1, output your diagnostic confidence:
+    [CONFIDENCE: 0.XX]
+  Use 0.00–1.00 for how certain you are about your current leading diagnosis.
+
+  In each turn after that line:
   1. Mentally update your differential diagnosis based on everything gathered so far.
   2. Identify the single most informative question that would best discriminate
      between your top two competing diagnoses.
   3. Ask that question.
 
   As your differential narrows, your questions should become increasingly specific.
-  By turn 10 (end of Stage 2), you should have a clear leading diagnosis.
+  By the end of Stage 2, you should have a clear leading diagnosis.
 
   Rules:
+  - Line 1 must always be [CONFIDENCE: 0.XX]. Do not use [RETRIEVAL QUERY: ...] markers.
   - Ask exactly one patient-directed question per turn.
-  - Do not use any retrieval markers or confidence markers.
   - Do not reveal your differential to the patient.
 
 tool_access:

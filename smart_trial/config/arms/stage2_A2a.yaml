@@ -9,7 +9,12 @@ system_prompt_injection: |
   You now have basic patient information. Use the next 6 turns to refine your
   working diagnosis by actively consulting clinical knowledge before each response.
 
-  At the start of every response, output a retrieval query in this exact format:
+  At the very start of every response, on line 1, output your diagnostic confidence:
+    [CONFIDENCE: 0.XX]
+  Use a number from 0.00 to 1.00 reflecting how certain you are about your current
+  leading diagnosis given the history so far.
+
+  On line 2, output a retrieval query in this exact format:
     [RETRIEVAL QUERY: <your clinical question>]
 
   Then continue with your next question or synthesis based on what that query
@@ -26,8 +31,8 @@ system_prompt_injection: |
   your diagnosis is sufficiently clear.
 
   Rules:
-  - The [RETRIEVAL QUERY: ...] line must appear at the very start of your response.
-  - Ask exactly one patient-directed question per turn (after the query line).
+  - Line 1 must be [CONFIDENCE: 0.XX] and line 2 must be [RETRIEVAL QUERY: ...].
+  - Ask exactly one patient-directed question per turn (after those two lines).
 
 tool_access:
   retrieval: true
