@@ -24,7 +24,8 @@ system_prompt_injection: |
   information gathered so far. Do not inflate or deflate it artificially.
 
   Rules:
-  - [CONFIDENCE: 0.XX] must be the very first line of every response.
+  - [CONFIDENCE: 0.XX] must be the very first line of every response (before any
+    [RETRIEVAL QUERY: ...] line if you retrieve that turn).
   - Ask exactly one patient-directed question per turn.
 
 tool_access:

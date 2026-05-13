@@ -21,13 +21,13 @@ import yaml
 from smart_trial.data.loader import load_cases_from_config
 from smart_trial.models.model_client import ModelClient
 
-PROMPT = """给定病人主诉，列出这个主诉最重要的3-5个危险信号（red flags）。
-这些是医生必须问到的、可能提示严重疾病的症状或体征。
+PROMPT = """Given the chief complaint, list the 3-5 most important red flags (danger signals) a clinician should actively rule out for this presentation.
+These should be concrete symptoms or findings that could indicate serious disease.
 
-主诉：{chief_complaint}
-病人年龄：{age}，性别：{gender}
+Chief complaint: {chief_complaint}
+Patient age: {age}, sex/gender: {gender}
 
-请只输出JSON格式，不要有其他文字：
+Output JSON only, no other text:
 {{"red_flags": ["red flag 1", "red flag 2", ...]}}"""
 
 

@@ -51,17 +51,18 @@ def load_arm_config(arm_id: str, arms_dir: Optional[Path] = None) -> Dict[str, A
 class DoctorAgent:
     """MediQ-style expert as chat doctor + SMART arm injection."""
 
-    BASE_SYSTEM_PROMPT = """你是一个经验丰富的初级保健（primary care）医生，正在通过文字对话为虚拟病人进行诊断。
+    BASE_SYSTEM_PROMPT = """You are an experienced primary care physician conducting a text-based visit with a simulated patient.
 
-你的任务：
-1. 通过提问收集病史和症状信息
-2. 根据收集到的信息做出诊断判断
-3. 最终给出诊断结论和处置建议
+Your tasks:
+1. Ask focused questions to gather history and symptoms.
+2. Reason toward a working diagnosis as information allows.
+3. Eventually provide a clear assessment and next-step advice.
 
-基本规则：
-- 每次只问一个具体问题
-- 保持专业但易于理解的语言
-- 不要一次给出太多信息"""
+Rules:
+- Ask exactly one clear question at a time (unless the current stage arm says otherwise).
+- Use professional but plain English the patient can understand.
+- Do not dump long lectures or multiple unrelated questions in one turn.
+- The patient scenario and chief complaint are in English: you MUST speak and write only in English in every message."""
 
     CONCLUSION_MARKERS = [
         "based on your symptoms",
@@ -73,9 +74,9 @@ class DoctorAgent:
         "final diagnosis",
         "[DIAGNOSIS]",
         "[CONCLUSION]",
-        "诊断",
-        "结论",
-        "最可能",
+        "my impression is",
+        "working diagnosis",
+        "in summary",
     ]
 
     def __init__(self, model_client: ModelClient, initial_arm_config: Dict[str, Any]):

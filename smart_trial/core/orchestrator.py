@@ -115,6 +115,7 @@ class TrialOrchestrator:
         doctor.switch_arm(stage2_arm)
         print(f"--- STAGE 2 ({stage2_arm.get('name', '')}) ---")
 
+        stage2_hist_start = len(doctor.conversation_history)
         for turn in range(5, 11):
             doctor_msg, confidence = doctor.respond(last_patient)
             conf_str = f" [conf={confidence:.2f}]" if confidence is not None else ""
@@ -128,8 +129,18 @@ class TrialOrchestrator:
         print("--- Computing R2 ---")
         stage2_confidences = logger.get_stage2_confidences()
         thr = float(self.config.get("trial", {}).get("R2_high_confidence_threshold", 0.7))
-        R2 = self.judge.compute_R2(doctor.conversation_history, stage2_confidences, high_threshold=thr)
-        print(f"R2 Confidence: {R2['confidence_level']} (final={R2['final_confidence']:.2f})")
+        stage2_slice = doctor.conversation_history[stage2_hist_start:]
+        R2 = self.judge.compute_R2(
+            doctor.conversation_history,
+            stage2_confidences,
+            high_threshold=thr,
+            stage2_conversation_slice=stage2_slice,
+            case=case,
+        )
+        print(
+            f"R2 Confidence: {R2['confidence_level']} (final={R2['final_confidence']:.2f}, "
+            f"source={R2.get('r2_source', '')})"
+        )
 
         stage3_assignment = randomizer.assign_stage3_arm(case, R2)
         stage3_arm_id = stage3_assignment["arm"]

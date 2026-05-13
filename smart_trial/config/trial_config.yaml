@@ -16,20 +16,22 @@ data:
     split: "validation"
     max_cases: null
 
-# Switch provider/model_name here when API keys are available.
+# Hot-swap backends here (repo-root .env: GROQ_API_KEY; GEMINI_API_KEY only if you use gemini).
+# Pilot: one small Groq model for patient + doctor + judge — free tier friendly, lower token cost.
+# Strategy / arms: config/arms/*.yaml (see doc/SMART_Implementation_Plan.md).
 # Supported providers: mock | groq | openai | anthropic | gemini
 models:
   patient_simulator:
-    provider: "mock"
-    model_name: "mock"
+    provider: "groq"
+    model_name: "llama-3.1-8b-instant"
     temperature: 0.3
   doctor_agent:
-    provider: "mock"
-    model_name: "mock"
+    provider: "groq"
+    model_name: "llama-3.1-8b-instant"
     temperature: 0.5
   judge:
-    provider: "mock"
-    model_name: "mock"
+    provider: "groq"
+    model_name: "llama-3.1-8b-instant"
     temperature: 0.1
 
 randomization:
