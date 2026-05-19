@@ -36,11 +36,17 @@ class ModelClient:
         raise ValueError(f"Unknown provider: {self.provider}")
 
     def chat(self, messages: List[Dict], system_prompt: Optional[str] = None,
-             temperature: Optional[float] = None) -> str:
+             temperature: Optional[float] = None, max_retries: int = 3) -> str:
         """
         messages: [{"role": "user"/"assistant", "content": "..."}]
-        Returns the model's reply as a string.
+        Returns the model's reply as a string. Retries on rate-limit errors.
         """
+        return self.chat_with_retry(
+            messages, system_prompt=system_prompt, temperature=temperature, max_retries=max_retries
+        )
+
+    def _chat_once(self, messages: List[Dict], system_prompt: Optional[str] = None,
+                   temperature: Optional[float] = None) -> str:
         temp = temperature if temperature is not None else self.default_temperature
 
         if self.provider == "mock":
@@ -80,7 +86,7 @@ class ModelClient:
                         temperature: Optional[float] = None, max_retries: int = 3) -> str:
         for attempt in range(max_retries):
             try:
-                return self.chat(messages, system_prompt, temperature)
+                return self._chat_once(messages, system_prompt, temperature)
             except Exception as e:
                 err = str(e).lower()
                 is_rate_limit = any(k in err for k in ("rate_limit", "rate limit", "429", "too many"))

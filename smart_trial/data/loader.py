@@ -271,7 +271,18 @@ def apply_red_flag_cache(cases: List[Dict[str, Any]], cache: Dict[str, Any]) -> 
             case["red_flags"] = cache[cid]
 
 
-def load_cases_from_config(config: Dict[str, Any]) -> List[Dict[str, Any]]:
+def resolve_data_path(path_str: str) -> Path:
+    path = Path(path_str)
+    if path.is_absolute():
+        return path
+    return _REPO_ROOT / path
+
+
+def load_cases_from_config(
+    config: Dict[str, Any],
+    *,
+    apply_red_flags_from_config: bool = True,
+) -> List[Dict[str, Any]]:
     """
     Load cases using `data` section from trial_config.yaml.
 
@@ -281,14 +292,39 @@ def load_cases_from_config(config: Dict[str, Any]) -> List[Dict[str, Any]]:
     source = (data_cfg.get("source") or "local").lower()
     if source == "huggingface":
         hf = data_cfg.get("huggingface") or {}
-        return load_imedqa(
+        cases = load_imedqa(
             split=str(hf.get("split", "validation")),
             max_cases=hf.get("max_cases"),
         )
-    local = data_cfg.get("local") or {}
-    path = local.get("path", "data/all_dev_good.jsonl")
-    max_cases = local.get("max_cases")
-    return load_local_data(path, max_cases=max_cases)
+    else:
+        local = data_cfg.get("local") or {}
+        path = local.get("path", "data/all_dev_good.jsonl")
+        max_cases = local.get("max_cases")
+        cases = load_local_data(path, max_cases=max_cases)
+
+    if apply_red_flags_from_config:
+        cache_path = data_cfg.get("red_flag_cache")
+        if cache_path:
+            path = resolve_data_path(str(cache_path))
+            if path.is_file():
+                cache = load_red_flag_cache(str(path))
+                apply_red_flag_cache(cases, cache)
+    return cases
+
+
+def pick_diverse_cases(cases: List[Dict[str, Any]], n: int = 3) -> List[Dict[str, Any]]:
+    """Pick up to n cases with distinct case_category values (first match per category)."""
+    picked: List[Dict[str, Any]] = []
+    seen: set = set()
+    for case in cases:
+        cat = case.get("case_category", "Other")
+        if cat in seen:
+            continue
+        seen.add(cat)
+        picked.append(case)
+        if len(picked) >= n:
+            break
+    return picked
 
 
 def get_case_by_id(cases: List[Dict[str, Any]], case_id: str) -> Optional[Dict[str, Any]]:

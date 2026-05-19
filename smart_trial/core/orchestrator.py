@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -7,7 +8,7 @@ from smart_trial.core.doctor_agent import DoctorAgent, load_arm_config
 from smart_trial.core.judge import StageJudge
 from smart_trial.core.patient_agent import PatientAgent
 from smart_trial.core.randomizer import TrialRandomizer
-from smart_trial.logging.trajectory_logger import TrajectoryLogger
+from smart_trial.trajectory_log.trajectory_logger import TrajectoryLogger
 from smart_trial.models.model_client import ModelClient
 
 SMART_TRIAL_ROOT = Path(__file__).resolve().parent.parent
@@ -54,7 +55,10 @@ class TrialOrchestrator:
         self._arms_dir = SMART_TRIAL_ROOT / "config" / "arms"
 
     def _make_client(self, role: str) -> ModelClient:
-        cfg = self.config["models"][role]
+        cfg = dict(self.config["models"][role])
+        if os.environ.get("SMART_TRIAL_USE_MOCK", "").lower() in ("1", "true", "yes"):
+            cfg["provider"] = "mock"
+            cfg["model_name"] = "mock"
         return ModelClient(
             provider=cfg["provider"],
             model_name=cfg["model_name"],
