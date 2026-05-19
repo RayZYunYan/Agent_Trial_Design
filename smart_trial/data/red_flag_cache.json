@@ -1,0 +1,292 @@
+{
+  "medqa_0000": [
+    "severe pain",
+    "rapid deterioration",
+    "loss of consciousness"
+  ],
+  "medqa_0001": [
+    "altered consciousness",
+    "high fever",
+    "rash with fever",
+    "severe dehydration"
+  ],
+  "medqa_0002": [
+    "suicidal ideation",
+    "homicidal ideation",
+    "acute psychosis"
+  ],
+  "medqa_0003": [
+    "severe pain",
+    "rapid deterioration",
+    "loss of consciousness"
+  ],
+  "medqa_0004": [
+    "sudden onset severe headache",
+    "neck stiffness",
+    "focal neurological deficit",
+    "altered consciousness"
+  ],
+  "medqa_0005": [
+    "radiation to left arm or jaw",
+    "diaphoresis",
+    "shortness of breath",
+    "syncope",
+    "family history of heart disease"
+  ],
+  "medqa_0006": [
+    "radiation to left arm or jaw",
+    "diaphoresis",
+    "shortness of breath",
+    "syncope",
+    "family history of heart disease"
+  ],
+  "medqa_0007": [
+    "severe pain",
+    "rapid deterioration",
+    "loss of consciousness"
+  ],
+  "medqa_0008": [
+    "severe pain",
+    "rapid deterioration",
+    "loss of consciousness"
+  ],
+  "medqa_0009": [
+    "radiation to left arm or jaw",
+    "diaphoresis",
+    "shortness of breath",
+    "syncope",
+    "family history of heart disease"
+  ],
+  "medqa_0010": [
+    "radiation to left arm or jaw",
+    "diaphoresis",
+    "shortness of breath",
+    "syncope",
+    "family history of heart disease"
+  ],
+  "medqa_0011": [
+    "suicidal ideation",
+    "homicidal ideation",
+    "acute psychosis"
+  ],
+  "medqa_0012": [
+    "suicidal ideation",
+    "homicidal ideation",
+    "acute psychosis"
+  ],
+  "medqa_0013": [
+    "severe pain",
+    "rapid deterioration",
+    "loss of consciousness"
+  ],
+  "medqa_0014": [
+    "severe pain",
+    "rapid deterioration",
+    "loss of consciousness"
+  ],
+  "medqa_0015": [
+    "suicidal ideation",
+    "homicidal ideation",
+    "acute psychosis"
+  ],
+  "medqa_0016": [
+    "severe pain",
+    "rapid deterioration",
+    "loss of consciousness"
+  ],
+  "medqa_0017": [
+    "radiation to left arm or jaw",
+    "diaphoresis",
+    "shortness of breath",
+    "syncope",
+    "family history of heart disease"
+  ],
+  "medqa_0018": [
+    "radiation to left arm or jaw",
+    "diaphoresis",
+    "shortness of breath",
+    "syncope",
+    "family history of heart disease"
+  ],
+  "medqa_0019": [
+    "sudden onset severe headache",
+    "neck stiffness",
+    "focal neurological deficit",
+    "altered consciousness"
+  ],
+  "medqa_0020": [
+    "severe pain",
+    "rapid deterioration",
+    "loss of consciousness"
+  ],
+  "medqa_0021": [
+    "radiation to left arm or jaw",
+    "diaphoresis",
+    "shortness of breath",
+    "syncope",
+    "family history of heart disease"
+  ],
+  "medqa_0022": [
+    "altered consciousness",
+    "high fever",
+    "rash with fever",
+    "severe dehydration"
+  ],
+  "medqa_0023": [
+    "suicidal ideation",
+    "homicidal ideation",
+    "acute psychosis"
+  ],
+  "medqa_0024": [
+    "altered consciousness",
+    "high fever",
+    "rash with fever",
+    "severe dehydration"
+  ],
+  "medqa_0025": [
+    "severe pain",
+    "rapid deterioration",
+    "loss of consciousness"
+  ],
+  "medqa_0026": [
+    "severe pain",
+    "rapid deterioration",
+    "loss of consciousness"
+  ],
+  "medqa_0027": [
+    "altered consciousness",
+    "high fever",
+    "rash with fever",
+    "severe dehydration"
+  ],
+  "medqa_0028": [
+    "altered consciousness",
+    "high fever",
+    "rash with fever",
+    "severe dehydration"
+  ],
+  "medqa_0029": [
+    "severe pain",
+    "rapid deterioration",
+    "loss of consciousness"
+  ],
+  "medqa_0030": [
+    "severe pain",
+    "rapid deterioration",
+    "loss of consciousness"
+  ],
+  "medqa_0031": [
+    "sudden onset severe headache",
+    "neck stiffness",
+    "focal neurological deficit",
+    "altered consciousness"
+  ],
+  "medqa_0032": [
+    "severe pain",
+    "rapid deterioration",
+    "loss of consciousness"
+  ],
+  "medqa_0033": [
+    "severe pain",
+    "rapid deterioration",
+    "loss of consciousness"
+  ],
+  "medqa_0034": [
+    "radiation to left arm or jaw",
+    "diaphoresis",
+    "shortness of breath",
+    "syncope",
+    "family history of heart disease"
+  ],
+  "medqa_0035": [
+    "severe pain",
+    "rapid deterioration",
+    "loss of consciousness"
+  ],
+  "medqa_0036": [
+    "altered consciousness",
+    "high fever",
+    "rash with fever",
+    "severe dehydration"
+  ],
+  "medqa_0037": [
+    "radiation to left arm or jaw",
+    "diaphoresis",
+    "shortness of breath",
+    "syncope",
+    "family history of heart disease"
+  ],
+  "medqa_0038": [
+    "severe pain",
+    "rapid deterioration",
+    "loss of consciousness"
+  ],
+  "medqa_0039": [
+    "radiation to left arm or jaw",
+    "diaphoresis",
+    "shortness of breath",
+    "syncope",
+    "family history of heart disease"
+  ],
+  "medqa_0040": [
+    "radiation to left arm or jaw",
+    "diaphoresis",
+    "shortness of breath",
+    "syncope",
+    "family history of heart disease"
+  ],
+  "medqa_0041": [
+    "sudden onset severe headache",
+    "neck stiffness",
+    "focal neurological deficit",
+    "altered consciousness"
+  ],
+  "medqa_0042": [
+    "radiation to left arm or jaw",
+    "diaphoresis",
+    "shortness of breath",
+    "syncope",
+    "family history of heart disease"
+  ],
+  "medqa_0043": [
+    "severe pain",
+    "rapid deterioration",
+    "loss of consciousness"
+  ],
+  "medqa_0044": [
+    "radiation to left arm or jaw",
+    "diaphoresis",
+    "shortness of breath",
+    "syncope",
+    "family history of heart disease"
+  ],
+  "medqa_0045": [
+    "radiation to left arm or jaw",
+    "diaphoresis",
+    "shortness of breath",
+    "syncope",
+    "family history of heart disease"
+  ],
+  "medqa_0046": [
+    "severe pain",
+    "rapid deterioration",
+    "loss of consciousness"
+  ],
+  "medqa_0047": [
+    "radiation to left arm or jaw",
+    "diaphoresis",
+    "shortness of breath",
+    "syncope",
+    "family history of heart disease"
+  ],
+  "medqa_0048": [
+    "severe pain",
+    "rapid deterioration",
+    "loss of consciousness"
+  ],
+  "medqa_0049": [
+    "severe pain",
+    "rapid deterioration",
+    "loss of consciousness"
+  ]
+}

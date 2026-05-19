@@ -58,7 +58,7 @@ def main() -> None:
             age=case.get("age", "unknown"),
             gender=case.get("gender", "unknown"),
         )
-        response = client.chat([{"role": "user", "content": prompt}], temperature=0.2)
+        response = client.chat_with_retry([{"role": "user", "content": prompt}], temperature=0.2)
         flags: list = []
         try:
             clean = re.sub(r"```json\s*|\s*```", "", response).strip()
