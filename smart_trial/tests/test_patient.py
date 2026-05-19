@@ -1,8 +1,44 @@
 import yaml
 
-from smart_trial.core.patient_agent import PatientAgent
+from smart_trial.core.patient_agent import (
+    PatientAgent,
+    age_voice_band,
+    build_patient_system_prompt,
+    parent_age_for_child,
+    parse_age_years,
+)
 from smart_trial.data.loader import load_cases_from_config
 from smart_trial.models.model_client import ModelClient
+
+
+def test_parse_age_years():
+    assert parse_age_years("21 years old") == 21
+    assert parse_age_years(16) == 16
+    assert parse_age_years("unknown") is None
+
+
+def test_age_voice_bands():
+    assert age_voice_band(5) == "child_parent"
+    assert age_voice_band(16) == "teen"
+    assert age_voice_band(40) == "adult"
+    assert age_voice_band(70) == "older_adult"
+
+
+def test_parent_age_for_child_in_range():
+    assert 30 <= parent_age_for_child(5) <= 45
+    assert parent_age_for_child(5) == 33
+    assert parent_age_for_child(12) == 40
+
+
+def test_child_case_uses_parent_voice():
+    prompt = build_patient_system_prompt({"age": "5 years old", "gender": "female"})
+    assert "parent or guardian" in prompt
+    assert "daughter" in prompt
+
+
+def test_teen_case_uses_teen_voice():
+    prompt = build_patient_system_prompt({"age": 16, "gender": "male"})
+    assert "teenager" in prompt
 
 
 def test_patient_responds_with_atomic_facts():
