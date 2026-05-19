@@ -89,12 +89,3 @@ smart_trial/
   run_encounter.py  CLI entry
 run_encounter.py    thin wrapper at repo root
 ```
-
-## Demo checklist (May 20 milestone)
-
-- [ ] `python run_encounter.py --case_id medqa_0000 --seed 42` completes all three stages
-- [ ] `python -m smart_trial.scripts.summarize_encounters` prints arm and outcome stats
-- [ ] `python run_encounter.py --diverse 3 --seed 42` runs without errors
-- [ ] JSONL under `smart_trial/outputs/encounters/` contains real dialogue (not `[MOCK]`)
-
-See `doc/SMART_Implementation_Plan.md` for the full design specification.
