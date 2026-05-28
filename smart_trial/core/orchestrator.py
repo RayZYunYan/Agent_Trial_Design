@@ -1,4 +1,5 @@
 import os
+import random
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -6,10 +7,14 @@ import yaml
 
 from smart_trial.core.doctor_agent import DoctorAgent, load_arm_config
 from smart_trial.core.judge import StageJudge
-from smart_trial.core.patient_agent import PatientAgent
+from smart_trial.core.patient_agent import PERSONA_AXES, PatientAgent
 from smart_trial.core.randomizer import TrialRandomizer
 from smart_trial.trajectory_log.trajectory_logger import TrajectoryLogger
 from smart_trial.models.model_client import ModelClient
+
+
+def _sample_persona(rng: random.Random) -> Dict[str, str]:
+    return {axis: rng.choice(values) for axis, values in PERSONA_AXES.items()}
 
 SMART_TRIAL_ROOT = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = SMART_TRIAL_ROOT.parent
@@ -65,13 +70,22 @@ class TrialOrchestrator:
             temperature=float(cfg.get("temperature", 0.5)),
         )
 
-    def run_encounter(self, case: Dict[str, Any], seed: Optional[int] = None) -> Dict[str, Any]:
+    def run_encounter(
+        self,
+        case: Dict[str, Any],
+        seed: Optional[int] = None,
+        persona: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         if seed is None:
             seed = int(self.config.get("randomization", {}).get("seed", 42))
 
         rand_cfg = self.config.get("randomization", {})
         randomizer = TrialRandomizer(seed, stratify_by=rand_cfg.get("stratify_by", "case_category"))
         logger = TrajectoryLogger(str(self._output_dir))
+
+        rng = random.Random(seed)
+        if persona is None:
+            persona = _sample_persona(rng)
 
         stage1_arm_id = randomizer.assign_stage1_arm(case)
         stage1_arm = load_arm_config(stage1_arm_id, self._arms_dir)
@@ -80,12 +94,13 @@ class TrialOrchestrator:
         print(f"Case: {case['case_id']} | {case.get('case_category', '')}")
         print(f"Chief Complaint: {case.get('chief_complaint', '')}")
         print(f"Stage 1 Arm: {stage1_arm_id} ({stage1_arm.get('name', '')})")
+        print(f"Persona: {persona}")
         print(f"{'=' * 60}\n")
 
         doctor = DoctorAgent(self.doctor_model, stage1_arm)
-        patient = PatientAgent(self.patient_model, case)
+        patient = PatientAgent(self.patient_model, case, persona=persona)
 
-        logger.start_encounter(case, seed, stage1_arm_id)
+        logger.start_encounter(case, seed, stage1_arm_id, persona=persona)
 
         initial_msg = doctor.get_initial_message(case)
         print(f"[Opening]\nDoctor: {initial_msg}\n")

@@ -4,6 +4,7 @@ from smart_trial.core.patient_agent import (
     PatientAgent,
     age_voice_band,
     build_patient_system_prompt,
+    communication_cues,
     parent_age_for_child,
     parse_age_years,
 )
@@ -39,6 +40,39 @@ def test_child_case_uses_parent_voice():
 def test_teen_case_uses_teen_voice():
     prompt = build_patient_system_prompt({"age": 16, "gender": "male"})
     assert "teenager" in prompt
+
+
+def test_prompt_uses_case_background_communication_cues():
+    case = {
+        "age": "21 years old",
+        "gender": "male",
+        "full_record": "A 21-year-old sexually active male has pain during urination.",
+    }
+    prompt = build_patient_system_prompt(case)
+    assert "sexual-health details" in prompt
+    assert "stereotypes" in prompt
+
+
+def test_psychiatric_background_can_sound_guarded():
+    cues = communication_cues(
+        {
+            "age": "43",
+            "gender": "male",
+            "full_record": "When probed further, the patient accuses the physician of being angry and hostile.",
+        }
+    )
+    assert any("guarded" in cue for cue in cues)
+
+
+def test_work_background_is_detected_without_guessing():
+    cues = communication_cues(
+        {
+            "age": "37 years old",
+            "gender": "male",
+            "full_record": "He works as a logger in Washington.",
+        }
+    )
+    assert any("work or school" in cue for cue in cues)
 
 
 def test_patient_responds_with_atomic_facts():
