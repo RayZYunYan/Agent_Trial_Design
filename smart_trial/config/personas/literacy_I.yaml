@@ -1,6 +1,13 @@
 persona_id: "literacy_I"
 nutbeam_level: "interactive"
 
+<<<<<<< HEAD
+=======
+# All three MVP axes pinned to I (interactive / moderate literacy).
+# Maps to Nutbeam (2000) interactive/communicative health literacy:
+# higher-level communicative and social skills to extract and discuss
+# health information, but not specialist clinical vocabulary.
+>>>>>>> b09bbc8 (Add health-literacy patient persona)
 axes:
   vocabulary_register: "I"
   jargon_comprehension: "I"
@@ -8,8 +15,16 @@ axes:
 
 notes: >
   Moderate-literacy patient across the three MVP axes. Comfortable with
+<<<<<<< HEAD
   common medical terms (heart attack, blood pressure, infection) but asks
   for clarification on specialist terms (palpitations, syncope, dyspnea).
   Locates sensations with rough zones ("upper belly", "left side of my
   chest"). The most common default in the demographic-default rule for
   adults aged 18-69.
+=======
+  common medical terms (heart attack, blood pressure, infection) but
+  asks for clarification on specialist terms (palpitations, syncope,
+  dyspnea). Locates sensations with rough zones ("upper belly", "left
+  side of my chest"). This is the most common default in the
+  demographic-default rule for adults aged 18-69.
+>>>>>>> b09bbc8 (Add health-literacy patient persona)

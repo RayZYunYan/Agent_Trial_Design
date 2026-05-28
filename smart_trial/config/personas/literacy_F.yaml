@@ -1,6 +1,9 @@
 persona_id: "literacy_F"
 nutbeam_level: "functional"
 
+# All three MVP axes pinned to F (functional / low literacy).
+# Maps to Nutbeam (2000) functional health literacy:
+# basic reading/comprehension, limited engagement with health information.
 axes:
   vocabulary_register: "F"
   jargon_comprehension: "F"
@@ -12,4 +15,4 @@ notes: >
   (radiation, OPQRST, dyspnea, etc.), and locates sensations vaguely
   ("around here", "in my belly area"). Use as the canonical low-literacy
   baseline. The persona modifies HOW the patient communicates but never
-  WHAT they know -- Fact-Select factuality is preserved.
+  WHAT they know — Fact-Select factuality is preserved.

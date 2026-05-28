@@ -1,13 +1,29 @@
 """
 Patient simulator: MediQ Fact-Select style (atomic facts + relevance selection).
 Compatible with precomputed `atomic_facts` from local JSONL loader.
+
+Optional health-literacy persona (see core/persona.py) wraps this agent with
+configurable communication behavior. When a persona is attached:
+  - The persona's instruction block is appended to the system prompt.
+  - Doctor messages are first passed through a jargon-comprehension check.
+    If the patient's literacy level cannot parse a term in the question, the
+    Fact-Select pipeline is bypassed and a clarification request is returned
+    in the persona's voice.
+Factuality is preserved because the persona only changes how the patient
+communicates -- it never modifies the atomic-fact retrieval or generation.
 """
 
+<<<<<<< HEAD
 import re
 from typing import Any, Dict, List, Optional
 
 from smart_trial.core.persona import HealthLiteracyPersona
 from smart_trial.core.trust_disclosure_persona import TrustDisclosurePersona
+=======
+from typing import Any, Dict, List, Optional
+
+from smart_trial.core.persona import HealthLiteracyPersona
+>>>>>>> b09bbc8 (Add health-literacy patient persona)
 from smart_trial.models.model_client import ModelClient
 
 _BASE_RULES = """Rules:
@@ -17,6 +33,7 @@ _BASE_RULES = """Rules:
 4. Do not guess or make up information.
 5. Reply only in English, even if the doctor accidentally uses another language."""
 
+<<<<<<< HEAD
 
 def parse_age_years(age: Any) -> Optional[int]:
     """Extract patient age in years from loader fields like '21 years old' or 21."""
@@ -150,10 +167,13 @@ class PatientAgent:
     facts; both only change how those facts are surfaced.
     """
 
+=======
+>>>>>>> b09bbc8 (Add health-literacy patient persona)
     def __init__(
         self,
         model_client: ModelClient,
         case: Dict[str, Any],
+<<<<<<< HEAD
         literacy_persona: Optional[HealthLiteracyPersona] = None,
         trust_persona: Optional[TrustDisclosurePersona] = None,
     ):
@@ -162,11 +182,19 @@ class PatientAgent:
         self.literacy_persona = literacy_persona
         self.trust_persona = trust_persona
         self.system_prompt = build_patient_system_prompt(case)
+=======
+        persona: Optional[HealthLiteracyPersona] = None,
+    ):
+        self.model = model_client
+        self.case = case
+        self.persona = persona
+>>>>>>> b09bbc8 (Add health-literacy patient persona)
         self.atomic_facts: List[str] = []
         self.conversation_history: List[Dict[str, str]] = []
         self._init_facts()
 
     def _effective_system_prompt(self) -> str:
+<<<<<<< HEAD
         """Per-call system prompt including any attached persona blocks."""
         parts: List[str] = [self.system_prompt]
         if self.literacy_persona is not None:
@@ -174,6 +202,12 @@ class PatientAgent:
         if self.trust_persona is not None:
             parts.append(self.trust_persona.render_persona_block())
         return "\n\n".join(parts)
+=======
+        """System prompt with the persona instruction block appended (if any)."""
+        if self.persona is None:
+            return self.SYSTEM_PROMPT
+        return self.SYSTEM_PROMPT + "\n\n" + self.persona.render_persona_block()
+>>>>>>> b09bbc8 (Add health-literacy patient persona)
 
     def _init_facts(self) -> None:
         pre = self.case.get("atomic_facts") or []
@@ -212,6 +246,7 @@ Output only the numbered fact list in English:"""
             self.atomic_facts = [record[:500]] if record else ["I came to see the doctor today."]
 
     def respond(self, doctor_message: str) -> str:
+<<<<<<< HEAD
         # Literacy persona jargon short-circuit: if the patient cannot parse
         # a term in the doctor's question, skip Fact-Select and return a
         # clarification request in the persona's voice. Models real
@@ -220,6 +255,16 @@ Output only the numbered fact list in English:"""
             unknown_term = self.literacy_persona.detects_jargon(doctor_message)
             if unknown_term is not None:
                 answer = self.literacy_persona.clarification_request(unknown_term)
+=======
+        # Persona jargon short-circuit: if the persona cannot parse a term in
+        # the doctor's question, skip Fact-Select and emit a clarification
+        # request in the persona's voice. This models real low-literacy
+        # patients who ask "what does that mean?" before answering.
+        if self.persona is not None:
+            unknown_term = self.persona.detects_jargon(doctor_message)
+            if unknown_term is not None:
+                answer = self.persona.clarification_request(unknown_term)
+>>>>>>> b09bbc8 (Add health-literacy patient persona)
                 self.conversation_history.append({"role": "doctor", "content": doctor_message})
                 self.conversation_history.append({"role": "patient", "content": answer})
                 return answer

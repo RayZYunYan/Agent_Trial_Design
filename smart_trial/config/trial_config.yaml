@@ -40,6 +40,7 @@ randomization:
   seed: 42
   stratify_by: "case_category"
 
+<<<<<<< HEAD
 # Health-Literacy Persona (HOW the patient talks).
 # See smart_trial/core/persona.py. Levels map to Nutbeam (2000):
 #   literacy_F = functional, literacy_I = interactive, literacy_C = critical.
@@ -48,10 +49,19 @@ randomization:
 #   "fixed"        -> every case uses persona.fixed_id
 #   "demographic"  -> select_default_persona_id (stereotype caveat applies)
 #   "per_case"     -> read case["persona"] if set, else demographic fallback
+=======
+# Patient persona (health-literacy axis). See smart_trial/core/persona.py.
+# mode:
+#   "off"          -> no persona; existing MediQ Fact-Select behavior (backward-compatible default)
+#   "fixed"        -> every case uses persona.fixed_id
+#   "demographic"  -> auto-pick by age via select_default_persona_id (stereotype caveat applies)
+#   "per_case"     -> read case["persona"] if present, else fall back to demographic
+>>>>>>> b09bbc8 (Add health-literacy patient persona)
 persona:
   mode: "fixed"
   fixed_id: "literacy_I"
 
+<<<<<<< HEAD
 # mode:
 #   "off"      -> no TDP
 #   "fixed"    -> every case uses trust_persona.fixed_id
@@ -60,6 +70,8 @@ trust_persona:
   mode: "per_case"
   fixed_id: "cooperative"
 
+=======
+>>>>>>> b09bbc8 (Add health-literacy patient persona)
 logging:
   output_dir: "smart_trial/outputs/encounters"
   format: "jsonl"

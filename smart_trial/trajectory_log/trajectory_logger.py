@@ -19,8 +19,12 @@ class TrajectoryLogger:
         case: Dict[str, Any],
         seed: int,
         stage1_arm: str,
+<<<<<<< HEAD:smart_trial/trajectory_log/trajectory_logger.py
         literacy_persona: Optional[Dict[str, Any]] = None,
         trust_persona: Optional[Dict[str, Any]] = None,
+=======
+        persona: Optional[Dict[str, Any]] = None,
+>>>>>>> b09bbc8 (Add health-literacy patient persona):smart_trial/logging/trajectory_logger.py
     ) -> None:
         self._turns = []
         self._stage2_confidences = []
@@ -32,8 +36,12 @@ class TrajectoryLogger:
             "ground_truth": case.get("ground_truth_answer", ""),
             "seed": seed,
             "stage1_arm": stage1_arm,
+<<<<<<< HEAD:smart_trial/trajectory_log/trajectory_logger.py
             "literacy_persona": literacy_persona,   # null when persona.mode == "off"
             "trust_persona": trust_persona,         # null when trust_persona.mode == "off"
+=======
+            "persona": persona,  # null when persona mode == "off"
+>>>>>>> b09bbc8 (Add health-literacy patient persona):smart_trial/logging/trajectory_logger.py
             "R1": None,
             "stage2_arm": None,
             "R2": None,
