@@ -1,9 +1,6 @@
 persona_id: "literacy_F"
 nutbeam_level: "functional"
 
-# All three MVP axes pinned to F (functional / low literacy).
-# Maps to Nutbeam (2000) functional health literacy:
-# basic reading/comprehension, limited engagement with health information.
 axes:
   vocabulary_register: "F"
   jargon_comprehension: "F"
