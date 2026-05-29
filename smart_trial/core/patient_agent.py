@@ -6,6 +6,8 @@ Compatible with precomputed `atomic_facts` from local JSONL loader.
 import re
 from typing import Any, Dict, List, Optional
 
+from smart_trial.core.persona import HealthLiteracyPersona
+from smart_trial.core.trust_disclosure_persona import TrustDisclosurePersona
 from smart_trial.models.model_client import ModelClient
 
 _BASE_RULES = """Rules:
@@ -131,15 +133,47 @@ def answer_style_instruction(case: Dict[str, Any]) -> str:
 
 
 class PatientAgent:
-    """Fact-Select patient simulator with age-appropriate voice in the system prompt."""
+    """Fact-Select patient simulator with age-appropriate voice in the system prompt.
 
-    def __init__(self, model_client: ModelClient, case: Dict[str, Any]):
+    Two optional persona layers, both additive and orthogonal:
+      - `literacy_persona` (see core/persona.py) controls HOW the patient
+        communicates: vocabulary register, jargon comprehension, anatomical
+        localization. Adds a jargon short-circuit -- when the doctor uses a
+        term the patient doesn't understand, the encounter returns a
+        clarification request instead of running Fact-Select.
+      - `trust_persona` (see core/trust_disclosure_persona.py) controls
+        WHAT the patient is willing to share: trust level, concealed topics,
+        reaction to insensitive questioning. Adds an opener-aware fact
+        filter -- facts on concealed topics are suppressed unless the doctor
+        opens with normalizing / patient-centered phrasing.
+    Factuality is preserved: neither persona modifies the underlying atomic
+    facts; both only change how those facts are surfaced.
+    """
+
+    def __init__(
+        self,
+        model_client: ModelClient,
+        case: Dict[str, Any],
+        literacy_persona: Optional[HealthLiteracyPersona] = None,
+        trust_persona: Optional[TrustDisclosurePersona] = None,
+    ):
         self.model = model_client
         self.case = case
+        self.literacy_persona = literacy_persona
+        self.trust_persona = trust_persona
         self.system_prompt = build_patient_system_prompt(case)
         self.atomic_facts: List[str] = []
         self.conversation_history: List[Dict[str, str]] = []
         self._init_facts()
+
+    def _effective_system_prompt(self) -> str:
+        """Per-call system prompt including any attached persona blocks."""
+        parts: List[str] = [self.system_prompt]
+        if self.literacy_persona is not None:
+            parts.append(self.literacy_persona.render_persona_block())
+        if self.trust_persona is not None:
+            parts.append(self.trust_persona.render_persona_block())
+        return "\n\n".join(parts)
 
     def _init_facts(self) -> None:
         pre = self.case.get("atomic_facts") or []
@@ -178,7 +212,28 @@ Output only the numbered fact list in English:"""
             self.atomic_facts = [record[:500]] if record else ["I came to see the doctor today."]
 
     def respond(self, doctor_message: str) -> str:
+        # Literacy persona jargon short-circuit: if the patient cannot parse
+        # a term in the doctor's question, skip Fact-Select and return a
+        # clarification request in the persona's voice. Models real
+        # low-literacy patients who ask "what does that mean?" first.
+        if self.literacy_persona is not None:
+            unknown_term = self.literacy_persona.detects_jargon(doctor_message)
+            if unknown_term is not None:
+                answer = self.literacy_persona.clarification_request(unknown_term)
+                self.conversation_history.append({"role": "doctor", "content": doctor_message})
+                self.conversation_history.append({"role": "patient", "content": answer})
+                return answer
+
         relevant = self._select_relevant_facts(doctor_message)
+
+        # Trust & Disclosure persona: filter out concealed-topic facts unless
+        # the doctor's question contained a trust-respecting opener. If the
+        # filter empties the selection, the patient declines to disclose and
+        # the default uncertain reply is used -- modeling the wary patient
+        # who answers "not really" instead of surfacing the hidden topic.
+        if self.trust_persona is not None and relevant:
+            relevant = self.trust_persona.filter_facts(relevant, doctor_message)
+
         if not relevant:
             answer = default_uncertain_reply(self.case)
         else:
@@ -195,7 +250,7 @@ Doctor's question: {doctor_message}
 Your answer (English only):"""
             answer = self.model.chat(
                 [{"role": "user", "content": prompt}],
-                system_prompt=self.system_prompt,
+                system_prompt=self._effective_system_prompt(),
                 temperature=0.3,
             )
 

@@ -1,0 +1,14 @@
+persona_id: "cooperative"
+
+# Behavior-equivalent to the original MediQ Fact-Select patient. Use as the
+# upper-trust control arm in any trust x arm interaction analysis.
+axes:
+  trust_in_clinician: "high"
+  concealed_topics: []
+  reaction_to_insensitive: "persistent"
+
+notes: >
+  High-trust, fully-disclosing patient. No concealed topics. Persists with
+  truthful answers even under awkward or judgmental phrasing. Behavior is
+  equivalent to the existing Fact-Select baseline — the persona is loaded
+  but none of its modifications fire.

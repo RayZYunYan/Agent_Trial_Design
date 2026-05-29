@@ -1,0 +1,21 @@
+persona_id: "wary_mistruster"
+
+# Low-trust patient concealing substance use and mental health history.
+# Withdraws under forensic / judgmental questioning.
+axes:
+  trust_in_clinician: "low"
+  concealed_topics:
+    - "alcohol"
+    - "drug_use"
+    - "mental_health"
+  reaction_to_insensitive: "withdrawal"
+
+notes: >
+  Low-trust patient who conceals substance use and mental-health history.
+  Substance use and mental-health facts are suppressed at fact-selection
+  unless the doctor opens with a normalizing / patient-centered phrase
+  (e.g. 'many patients in your situation...', 'is there anything you're
+  worried about?'). Under forensic phrasing (e.g. 'do you abuse drugs?',
+  'how much do you drink?') the patient withdraws — answers shrink and
+  concealed information stays hidden. Used as the canonical low-trust
+  test persona for the SMART arm x trust interaction analysis.

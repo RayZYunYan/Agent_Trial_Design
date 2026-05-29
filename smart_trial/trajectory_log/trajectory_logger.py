@@ -14,7 +14,14 @@ class TrajectoryLogger:
         self._turns: List[Dict[str, Any]] = []
         self._stage2_confidences: List[float] = []
 
-    def start_encounter(self, case: Dict[str, Any], seed: int, stage1_arm: str) -> None:
+    def start_encounter(
+        self,
+        case: Dict[str, Any],
+        seed: int,
+        stage1_arm: str,
+        literacy_persona: Optional[Dict[str, Any]] = None,
+        trust_persona: Optional[Dict[str, Any]] = None,
+    ) -> None:
         self._turns = []
         self._stage2_confidences = []
         self._current = {
@@ -25,6 +32,8 @@ class TrajectoryLogger:
             "ground_truth": case.get("ground_truth_answer", ""),
             "seed": seed,
             "stage1_arm": stage1_arm,
+            "literacy_persona": literacy_persona,   # null when persona.mode == "off"
+            "trust_persona": trust_persona,         # null when trust_persona.mode == "off"
             "R1": None,
             "stage2_arm": None,
             "R2": None,

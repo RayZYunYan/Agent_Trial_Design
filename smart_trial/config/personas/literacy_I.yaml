@@ -1,0 +1,15 @@
+persona_id: "literacy_I"
+nutbeam_level: "interactive"
+
+axes:
+  vocabulary_register: "I"
+  jargon_comprehension: "I"
+  anatomical_localization: "I"
+
+notes: >
+  Moderate-literacy patient across the three MVP axes. Comfortable with
+  common medical terms (heart attack, blood pressure, infection) but asks
+  for clarification on specialist terms (palpitations, syncope, dyspnea).
+  Locates sensations with rough zones ("upper belly", "left side of my
+  chest"). The most common default in the demographic-default rule for
+  adults aged 18-69.

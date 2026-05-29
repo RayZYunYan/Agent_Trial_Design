@@ -2,6 +2,7 @@ import json
 import re
 from typing import Any, Dict, List, Optional
 
+from smart_trial.core.trust_disclosure_persona import topic_appears_in_text
 from smart_trial.models.model_client import ModelClient
 
 
@@ -220,6 +221,7 @@ Reply with ONLY valid JSON in one line, no markdown fences:
         case: Dict[str, Any],
         conversation_history: List[Dict[str, Any]],
         R2: Dict[str, Any],
+        concealed_topics: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         gt = case.get("ground_truth_label") or case.get("ground_truth_answer", "unknown")
         if not final_diagnosis:
@@ -230,6 +232,7 @@ Reply with ONLY valid JSON in one line, no markdown fences:
                 "reasoning": "no final diagnosis provided",
             }
             outcome["red_flag_miss"] = self._check_red_flag_miss(conversation_history, case.get("red_flags", []))
+            self._fill_concealed_disclosure(conversation_history, concealed_topics, outcome)
             self._fill_r2_category(R2, outcome)
             return outcome
 
@@ -253,8 +256,40 @@ Reply with ONLY valid JSON in one line, no markdown fences:
             outcome["reasoning"] = "mock judge"
 
         outcome["red_flag_miss"] = self._check_red_flag_miss(conversation_history, case.get("red_flags", []))
+        self._fill_concealed_disclosure(conversation_history, concealed_topics, outcome)
         self._fill_r2_category(R2, outcome)
         return outcome
+
+    @staticmethod
+    def _check_concealed_topics_surfaced(
+        conversation: List[Dict[str, Any]],
+        concealed_topics: List[str],
+    ) -> List[str]:
+        """Subset of `concealed_topics` that ever surfaced in the conversation.
+
+        A topic is considered surfaced when any of its keywords appears in
+        any message (doctor or patient). This is the equity-gap metric
+        target: across encounters, does Stage-1-arm A1c surface concealed
+        substance use less often than A1a? Less often than A3b's SDM-style
+        Stage 3?
+        """
+        if not concealed_topics or not conversation:
+            return []
+        full_text = " ".join(str(m.get("content", "")) for m in conversation)
+        return [t for t in concealed_topics if topic_appears_in_text(t, full_text)]
+
+    def _fill_concealed_disclosure(
+        self,
+        conversation: List[Dict[str, Any]],
+        concealed_topics: Optional[List[str]],
+        outcome: Dict[str, Any],
+    ) -> None:
+        """Write concealed_topics_configured + concealed_topics_surfaced fields."""
+        configured = list(concealed_topics or [])
+        outcome["concealed_topics_configured"] = configured
+        outcome["concealed_topics_surfaced"] = (
+            self._check_concealed_topics_surfaced(conversation, configured)
+        )
 
     def _fill_r2_category(self, R2: Dict[str, Any], outcome: Dict[str, Any]) -> None:
         if R2.get("confidence_level") == "high":

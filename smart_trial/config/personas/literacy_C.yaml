@@ -1,0 +1,14 @@
+persona_id: "literacy_C"
+nutbeam_level: "critical"
+
+axes:
+  vocabulary_register: "C"
+  jargon_comprehension: "C"
+  anatomical_localization: "C"
+
+notes: >
+  High-literacy patient across the three MVP axes. Comfortable with medical
+  terminology, understands the doctor's jargon, locates sensations with
+  precise anatomical language. Behavior-equivalent to the original MediQ
+  Fact-Select patient: the persona is loaded but none of its modifications
+  trigger. Useful as the upper-literacy control arm.
