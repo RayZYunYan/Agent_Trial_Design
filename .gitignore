@@ -41,6 +41,7 @@ data/red_flag_cache.json
 
 # Outputs / logs
 smart_trial/outputs/
+smart_trial/q_learning/outputs/
 *.log
 *.log.*
 logs/
