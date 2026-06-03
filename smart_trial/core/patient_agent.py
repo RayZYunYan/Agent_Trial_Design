@@ -1,12 +1,14 @@
 """
 Patient simulator: MediQ Fact-Select style (atomic facts + relevance selection).
-Compatible with precomputed `atomic_facts` from local JSONL loader.
+Optional PatientPersona (see core/persona.py) modifies HOW the patient communicates
+without changing WHAT they know — Fact-Select factuality is preserved.
 """
 
 import random
 import re
 from typing import Any, Dict, List, Optional
 
+from smart_trial.core.persona import PatientPersona
 from smart_trial.models.model_client import ModelClient
 
 _BASE_RULES = """Rules:
@@ -15,60 +17,6 @@ _BASE_RULES = """Rules:
 3. If your facts do not cover what they asked, say you are not sure or have not noticed.
 4. Do not guess or make up information.
 5. Reply only in English, even if the doctor accidentally uses another language."""
-
-# ---------------------------------------------------------------------------
-# Persona-aware fallback replies for when no relevant facts are found.
-# ---------------------------------------------------------------------------
-_UNCERTAIN_REPLIES: Dict[str, List[str]] = {
-    "neutral": [
-        "I'm not sure — I haven't really noticed that.",
-        "I'm not certain about that.",
-        "I don't really know, to be honest.",
-    ],
-    "anxious": [
-        "I'm not sure... is that something I should have noticed?",
-        "I don't know — should I be worried about that?",
-        "I haven't really kept track of that. Is it important?",
-    ],
-    "impatient": [
-        "I don't know.",
-        "Not sure.",
-        "Can't say — can we move on?",
-    ],
-    "reserved": [
-        "I don't know.",
-        "Not sure.",
-        "I haven't noticed.",
-    ],
-    "verbose": [
-        "Honestly I'm not really sure. I've been so busy lately I haven't paid close attention to that.",
-        "I don't know — I mean, there's been a lot going on, I haven't really been keeping track.",
-        "Not sure about that one. I've had so much on my mind.",
-    ],
-    "distrustful": [
-        "I don't know. Why does that matter?",
-        "Not sure. Why are you asking about that?",
-        "I haven't noticed. Is that really relevant?",
-    ],
-}
-
-# ---------------------------------------------------------------------------
-# Persona axes — defines all valid values for systematic evaluation.
-# Use these when iterating combinations to test doctor-agent robustness.
-# ---------------------------------------------------------------------------
-PERSONA_AXES: Dict[str, List[str]] = {
-    "personality":     ["neutral", "anxious", "impatient", "reserved", "verbose", "distrustful"],
-    "language_level":  ["basic", "intermediate", "advanced"],
-    "recall":          ["high", "low"],
-    "emotional_state": ["calm", "distressed", "evasive"],
-}
-
-_PERSONA_DEFAULTS: Dict[str, str] = {
-    "personality":     "neutral",
-    "language_level":  "intermediate",
-    "recall":          "high",
-    "emotional_state": "calm",
-}
 
 
 def parse_age_years(age: Any) -> Optional[int]:
@@ -114,40 +62,38 @@ def _child_reference_word(gender: str) -> str:
     return "child"
 
 
-def _persona_instructions(persona: Dict[str, Any]) -> str:
-    """Translate a persona dict into behavioural instruction text for the system prompt."""
-    p = {**_PERSONA_DEFAULTS, **(persona or {})}
-    lines: List[str] = []
+def communication_cues(case: Dict[str, Any]) -> List[str]:
+    """Detect special communication contexts from case text and return behaviour cues."""
+    record = case.get("full_record") or case.get("chief_complaint") or ""
+    cues: List[str] = []
 
-    personality_map = {
-        "anxious":     "You are visibly anxious. Express worry freely. Seek reassurance from the doctor when answering.",
-        "impatient":   "You want to finish the visit quickly. Keep answers short and to the point. Show mild impatience if the doctor asks too many questions.",
-        "reserved":    "You are reluctant to volunteer information. Only answer exactly what is asked. Make the doctor work to draw out details.",
-        "verbose":     "You tend to ramble. Include extra life context and side details even when not directly relevant.",
-        "distrustful": "You are skeptical of the doctor. Question their motives when they ask sensitive questions. Express hesitation before answering.",
-    }
-    if p["personality"] in personality_map:
-        lines.append(personality_map[p["personality"]])
+    if re.search(
+        r'\bsexual(?:ly)?\b|\bSTI\b|\bSTD\b|\burination\b|\bgenital\b|\bintercourse\b',
+        record, re.IGNORECASE,
+    ):
+        cues.append(
+            "Be comfortable sharing sexual-health details; avoid assumptions or stereotypes."
+        )
 
-    if p["language_level"] == "basic":
-        lines.append("Use very simple words and short sentences. Say things like \"my stomach hurts bad\" rather than \"abdominal pain\".")
-    elif p["language_level"] == "advanced":
-        lines.append("You are articulate and may use terms you researched online, e.g. \"I read it could be gastritis\".")
+    if re.search(
+        r'\baccuse[sd]?\b|\bparanoi\b|\bhostile\b|\bdelusional\b|\bhallucinat\b',
+        record, re.IGNORECASE,
+    ):
+        cues.append("You may sound guarded or suspicious of the doctor's intentions.")
 
-    if p["recall"] == "low":
-        lines.append("You are uncertain about exact dates, durations, and dosages. Say \"I think...\" or \"maybe around...\" when recalling specifics.")
+    if re.search(
+        r'\bworks?\s+as\b|\bemployed\b|\blogger\b|\boccupation\b|\bjob\b|\bprofession\b',
+        record, re.IGNORECASE,
+    ):
+        cues.append("When relevant, naturally mention your work or school situation.")
 
-    if p["emotional_state"] == "distressed":
-        lines.append("You feel stressed and overwhelmed. Occasionally mention how this is affecting your daily life, e.g. \"I haven't been able to sleep because of this.\"")
-    elif p["emotional_state"] == "evasive":
-        lines.append("You are uncomfortable with certain topics. Hesitate or give indirect answers when questions feel too personal.")
-
-    if not lines:
-        return ""
-    return "\n\nPersona:\n" + "\n".join(f"- {l}" for l in lines)
+    return cues
 
 
-def build_patient_system_prompt(case: Dict[str, Any], persona: Optional[Dict[str, Any]] = None) -> str:
+def build_patient_system_prompt(
+    case: Dict[str, Any],
+    persona: Optional[PatientPersona] = None,
+) -> str:
     age_years = parse_age_years(case.get("age"))
     band = age_voice_band(age_years)
     gender = case.get("gender") or "unknown"
@@ -192,7 +138,11 @@ def build_patient_system_prompt(case: Dict[str, Any], persona: Optional[Dict[str
         cues_text = "\n".join(f"- {c}" for c in cues)
         cues_section = f"\n\nCommunication notes:\n{cues_text}"
 
-    persona_section = _persona_instructions(persona or case.get("persona") or {})
+    persona_section = ""
+    if persona is not None:
+        block = persona.render_persona_block()
+        if block:
+            persona_section = f"\n\n{block}"
 
     return (
         f"{role}\n\n"
@@ -203,42 +153,11 @@ def build_patient_system_prompt(case: Dict[str, Any], persona: Optional[Dict[str
     )
 
 
-def communication_cues(case: Dict[str, Any]) -> List[str]:
-    """Detect special communication contexts from case text and return behaviour cues."""
-    record = case.get("full_record") or case.get("chief_complaint") or ""
-    cues: List[str] = []
-
-    if re.search(
-        r'\bsexual(?:ly)?\b|\bSTI\b|\bSTD\b|\burination\b|\bgenital\b|\bintercourse\b',
-        record, re.IGNORECASE,
-    ):
-        cues.append(
-            "Be comfortable sharing sexual-health details; avoid assumptions or stereotypes."
-        )
-
-    if re.search(
-        r'\baccuse[sd]?\b|\bparanoi\b|\bhostile\b|\bdelusional\b|\bhallucinat\b',
-        record, re.IGNORECASE,
-    ):
-        cues.append("You may sound guarded or suspicious of the doctor's intentions.")
-
-    if re.search(
-        r'\bworks?\s+as\b|\bemployed\b|\blogger\b|\boccupation\b|\bjob\b|\bprofession\b',
-        record, re.IGNORECASE,
-    ):
-        cues.append("When relevant, naturally mention your work or school situation.")
-
-    return cues
-
-
 def default_uncertain_reply(
     case: Dict[str, Any],
-    persona: Optional[Dict[str, Any]] = None,
+    persona: Optional[PatientPersona] = None,
     last_reply: Optional[str] = None,
 ) -> str:
-    personality = (persona or {}).get("personality", "neutral")
-    replies = _UNCERTAIN_REPLIES.get(personality, _UNCERTAIN_REPLIES["neutral"])
-
     age_years = parse_age_years(case.get("age"))
     band = age_voice_band(age_years)
     if band == "child_parent":
@@ -251,7 +170,9 @@ def default_uncertain_reply(
         ]
         options = [r for r in pool if r != last_reply] or pool
         return random.choice(options)
-
+    if persona is not None:
+        return persona.uncertain_reply(last_reply=last_reply)
+    replies = ["I'm not sure — I haven't really noticed that.", "I'm not certain about that."]
     options = [r for r in replies if r != last_reply] or replies
     return random.choice(options)
 
@@ -276,11 +197,11 @@ class PatientAgent:
         self,
         model_client: ModelClient,
         case: Dict[str, Any],
-        persona: Optional[Dict[str, Any]] = None,
+        persona: Optional[PatientPersona] = None,
     ):
         self.model = model_client
         self.case = case
-        self.persona = persona  # explicit persona overrides case.get("persona")
+        self.persona = persona
         self.system_prompt = build_patient_system_prompt(case, persona=persona)
         self.atomic_facts: List[str] = []
         self.conversation_history: List[Dict[str, str]] = []
@@ -324,9 +245,25 @@ Output only the numbered fact list in English:"""
             self.atomic_facts = [record[:500]] if record else ["I came to see the doctor today."]
 
     def respond(self, doctor_message: str) -> str:
+        # Jargon short-circuit: patient asks for clarification instead of answering
+        if self.persona is not None:
+            term = self.persona.detects_jargon(doctor_message)
+            if term is not None:
+                prompt = self.persona.clarification_prompt(term)
+                answer = self.model.chat(
+                    [{"role": "user", "content": prompt}],
+                    system_prompt=self.system_prompt,
+                    temperature=0.5,
+                )
+                self.conversation_history.append({"role": "doctor", "content": doctor_message})
+                self.conversation_history.append({"role": "patient", "content": answer})
+                return answer
+
         relevant = self._select_relevant_facts(doctor_message)
         if not relevant:
-            answer = default_uncertain_reply(self.case, persona=self.persona, last_reply=self._last_uncertain_reply)
+            answer = default_uncertain_reply(
+                self.case, persona=self.persona, last_reply=self._last_uncertain_reply
+            )
             self._last_uncertain_reply = answer
         else:
             facts_text = "\n".join(f"- {f}" for f in relevant)

@@ -7,14 +7,17 @@ import yaml
 
 from smart_trial.core.doctor_agent import DoctorAgent, load_arm_config
 from smart_trial.core.judge import StageJudge
-from smart_trial.core.patient_agent import PERSONA_AXES, PatientAgent
+from smart_trial.core.patient_agent import PatientAgent
+from smart_trial.core.persona import (
+    PatientPersona,
+    load_persona_from_id,
+    select_default_persona_id,
+)
 from smart_trial.core.randomizer import TrialRandomizer
 from smart_trial.trajectory_log.trajectory_logger import TrajectoryLogger
 from smart_trial.models.model_client import ModelClient
 
 
-def _sample_persona(rng: random.Random) -> Dict[str, str]:
-    return {axis: rng.choice(values) for axis, values in PERSONA_AXES.items()}
 
 SMART_TRIAL_ROOT = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = SMART_TRIAL_ROOT.parent
@@ -58,6 +61,26 @@ class TrialOrchestrator:
         self._output_dir = resolve_path(log_cfg.get("output_dir", "smart_trial/outputs/encounters"))
 
         self._arms_dir = SMART_TRIAL_ROOT / "config" / "arms"
+        self._personas_dir = SMART_TRIAL_ROOT / "config" / "personas"
+
+    def _resolve_persona(
+        self, case: Dict[str, Any], rng: random.Random
+    ) -> Optional[PatientPersona]:
+        cfg = self.config.get("persona") or {}
+        mode = str(cfg.get("mode", "random")).lower()
+        if mode == "off":
+            return None
+        if mode == "fixed":
+            return load_persona_from_id(str(cfg.get("fixed_id", "default")), self._personas_dir)
+        if mode == "random":
+            case_rng = random.Random(rng.randint(0, 2**32) ^ hash(case.get("case_id", "")))
+            return PatientPersona.sample(case_rng)
+        if mode == "demographic":
+            return load_persona_from_id(select_default_persona_id(case), self._personas_dir)
+        if mode == "per_case":
+            pid = case.get("persona_id") or select_default_persona_id(case)
+            return load_persona_from_id(str(pid), self._personas_dir)
+        raise ValueError(f"Unknown persona.mode: {mode!r}")
 
     def _make_client(self, role: str) -> ModelClient:
         cfg = dict(self.config["models"][role])
@@ -74,7 +97,7 @@ class TrialOrchestrator:
         self,
         case: Dict[str, Any],
         seed: Optional[int] = None,
-        persona: Optional[Dict[str, Any]] = None,
+        persona: Optional[PatientPersona] = None,
     ) -> Dict[str, Any]:
         if seed is None:
             seed = int(self.config.get("randomization", {}).get("seed", 42))
@@ -85,7 +108,7 @@ class TrialOrchestrator:
 
         rng = random.Random(seed)
         if persona is None:
-            persona = _sample_persona(rng)
+            persona = self._resolve_persona(case, rng)
 
         stage1_arm_id = randomizer.assign_stage1_arm(case)
         stage1_arm = load_arm_config(stage1_arm_id, self._arms_dir)
@@ -100,7 +123,7 @@ class TrialOrchestrator:
         doctor = DoctorAgent(self.doctor_model, stage1_arm)
         patient = PatientAgent(self.patient_model, case, persona=persona)
 
-        logger.start_encounter(case, seed, stage1_arm_id, persona=persona)
+        logger.start_encounter(case, seed, stage1_arm_id, persona=persona.to_dict() if persona else None)
 
         initial_msg = doctor.get_initial_message(case)
         print(f"[Opening]\nDoctor: {initial_msg}\n")

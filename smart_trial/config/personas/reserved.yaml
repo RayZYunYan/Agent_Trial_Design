@@ -1,0 +1,7 @@
+persona_id: "reserved"
+axes:
+  vocabulary_register: "interactive"
+  jargon_comprehension: "interactive"
+  personality: "reserved"
+  recall: "high"
+  emotional_state: "calm"
