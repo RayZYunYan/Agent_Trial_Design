@@ -1,0 +1,7 @@
+persona_id: "anxious"
+axes:
+  vocabulary_register: "interactive"
+  jargon_comprehension: "interactive"
+  personality: "anxious"
+  recall: "high"
+  emotional_state: "distressed"

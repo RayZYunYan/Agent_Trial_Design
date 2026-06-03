@@ -40,6 +40,17 @@ randomization:
   seed: 42
   stratify_by: "case_category"
 
+# Patient persona — controls HOW the patient communicates (not what they know).
+# modes:
+#   off         -> no persona, original Fact-Select behaviour
+#   fixed       -> every case uses persona.fixed_id (load from config/personas/<id>.yaml)
+#   random      -> sample all axes per case, reproducible via case_id seed
+#   demographic -> auto-pick by age (low_literacy for <18 or >=70, else default)
+#   per_case    -> read case["persona_id"] if set, else demographic fallback
+persona:
+  mode: "random"
+  fixed_id: "default"
+
 logging:
   output_dir: "smart_trial/outputs/encounters"
   format: "jsonl"

@@ -1,0 +1,7 @@
+persona_id: "difficult"
+axes:
+  vocabulary_register: "functional"
+  jargon_comprehension: "functional"
+  personality: "distrustful"
+  recall: "low"
+  emotional_state: "evasive"

@@ -8,6 +8,7 @@ from smart_trial.core.patient_agent import (
     parent_age_for_child,
     parse_age_years,
 )
+from smart_trial.core.persona import PatientPersona, load_persona_from_id
 from smart_trial.data.loader import load_cases_from_config
 from smart_trial.models.model_client import ModelClient
 
@@ -103,3 +104,82 @@ def test_patient_loads_from_config_cases():
     reply = patient.respond("Can you describe your main symptom?")
     assert isinstance(reply, str)
     assert len(reply) > 0
+
+
+# ---------------------------------------------------------------------------
+# PatientPersona tests
+# ---------------------------------------------------------------------------
+
+def test_persona_neutral_renders_empty_block():
+    p = PatientPersona()
+    assert p.render_persona_block() == ""
+
+
+def test_persona_anxious_renders_instruction():
+    p = PatientPersona(personality="anxious")
+    block = p.render_persona_block()
+    assert "anxious" in block.lower() or "worried" in block.lower() or "reassurance" in block.lower()
+
+
+def test_persona_recall_low_renders_instruction():
+    p = PatientPersona(recall="low")
+    assert "uncertain" in p.render_persona_block().lower() or "hedging" in p.render_persona_block().lower()
+
+
+def test_jargon_detects_specialist_term_for_interactive_level():
+    p = PatientPersona(jargon_comprehension="interactive")
+    assert p.detects_jargon("do you have any syncope?") == "syncope"
+
+
+def test_jargon_skips_for_critical_level():
+    p = PatientPersona(jargon_comprehension="critical")
+    assert p.detects_jargon("do you have any syncope?") is None
+
+
+def test_jargon_functional_detects_common_medical_term():
+    p = PatientPersona(jargon_comprehension="functional")
+    assert p.detects_jargon("what is the onset of your symptoms?") == "onset"
+
+
+def test_jargon_interactive_does_not_trigger_on_common_term():
+    p = PatientPersona(jargon_comprehension="interactive")
+    assert p.detects_jargon("what is the onset of your symptoms?") is None
+
+
+def test_clarification_prompt_contains_term():
+    p = PatientPersona()
+    prompt = p.clarification_prompt("syncope")
+    assert "syncope" in prompt
+
+
+def test_persona_from_dict_roundtrip():
+    p = PatientPersona(personality="reserved", vocabulary_register="functional", recall="low")
+    p2 = PatientPersona.from_dict(p.to_dict())
+    assert p2.personality == "reserved"
+    assert p2.vocabulary_register == "functional"
+    assert p2.recall == "low"
+
+
+def test_persona_yaml_preset_loads():
+    p = load_persona_from_id("difficult")
+    assert p.personality == "distrustful"
+    assert p.jargon_comprehension == "functional"
+
+
+def test_patient_agent_accepts_persona():
+    from smart_trial.models.model_client import ModelClient
+    client = ModelClient(provider="mock", model_name="mock")
+    case = {"case_id": "test_001", "atomic_facts": ["The pain started two hours ago."]}
+    persona = PatientPersona(personality="anxious", jargon_comprehension="interactive")
+    agent = PatientAgent(client, case, persona=persona)
+    assert agent.persona.personality == "anxious"
+
+
+def test_jargon_short_circuit_in_agent():
+    from smart_trial.models.model_client import ModelClient
+    client = ModelClient(provider="mock", model_name="mock")
+    case = {"case_id": "test_002", "atomic_facts": ["Patient has chest pain."]}
+    persona = PatientPersona(jargon_comprehension="functional")
+    agent = PatientAgent(client, case, persona=persona)
+    answer = agent.respond("What is the onset of your symptoms?")
+    assert isinstance(answer, str) and len(answer) > 0
