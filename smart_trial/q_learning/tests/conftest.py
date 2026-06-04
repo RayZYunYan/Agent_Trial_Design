@@ -8,11 +8,7 @@ import pytest
 
 @pytest.fixture
 def toy_df() -> pd.DataFrame:
-    """Tiny synthetic encounter table that respects pool constraints.
-
-    DGP: A1c best for cardiology, A3a best when R2='high', A3c when R2='low'.
-    Used by feature + q_learning tests.
-    """
+    """Tiny synthetic encounter table that respects pool constraints."""
     rng = np.random.default_rng(0)
     n = 60
     cats = rng.choice(["Cardiology", "Pulmonology", "Other"], size=n)

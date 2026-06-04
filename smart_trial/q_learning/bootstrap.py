@@ -78,3 +78,35 @@ def optimal_dtr_value(df: pd.DataFrame) -> float:
     """Statistic callable: fit Q-learning on df, return mean of pseudo_y0."""
     from .q_learning import fit
     return float(fit(df).value)
+
+
+def cross_fitted_dtr_value(df: pd.DataFrame) -> float:
+    """Statistic callable: K-fold cross-fitted value of π̂."""
+    from .q_learning import cross_fitted_value
+    val, _ = cross_fitted_value(df)
+    return float(val)
+
+
+def cms_projection_ci(
+    df: pd.DataFrame,
+    statistic: Callable[[pd.DataFrame], float],
+    n_boot: int = 500,
+    m: Optional[int] = None,
+    alpha: float = 0.05,
+    seed: int = 0,
+) -> Tuple[float, Tuple[float, float], np.ndarray]:
+    """CMS projection bootstrap: 2 V_full - V_mn resamples (Chakraborty et al. 2010)."""
+    rng = np.random.default_rng(seed)
+    n = len(df)
+    if n == 0:
+        return float("nan"), (float("nan"), float("nan")), np.array([])
+    if m is None:
+        m = max(2, int(np.floor(n ** 0.75)))
+    point = float(statistic(df))
+    draws = np.empty(n_boot)
+    for b in range(n_boot):
+        idx = rng.integers(0, n, size=m)
+        draws[b] = float(statistic(df.iloc[idx].reset_index(drop=True)))
+    projected = 2.0 * point - draws
+    lo, hi = np.quantile(projected, [alpha / 2, 1 - alpha / 2])
+    return point, (float(lo), float(hi)), projected

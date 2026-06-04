@@ -7,6 +7,8 @@ Two ways the intern will want to read the rules out:
 """
 from __future__ import annotations
 
+from typing import Optional
+
 import numpy as np
 import pandas as pd
 
@@ -70,11 +72,12 @@ def coefficient_table(result: QLearningResult) -> pd.DataFrame:
 def adaptive_vs_static_value(
     df: pd.DataFrame,
     adaptive_value: float,
+    fitted: Optional["QLearningResult"] = None,
 ) -> pd.DataFrame:
-    """Compare adaptive DTR value vs every possible static (a1,a2,a3) — plan §5."""
+    """Compare adaptive DTR value vs every feasible static (a1,a2,a3) — plan §5."""
     from itertools import product
 
-    from .q_learning import value_of_fixed_strategy
+    from .q_learning import QLearningResult, value_of_fixed_strategy
     from .config import STAGE1_ARMS
 
     a1_arms = STAGE1_ARMS
@@ -82,7 +85,7 @@ def adaptive_vs_static_value(
     a3_arms = ["A3a", "A3b", "A3c"]
     rows = []
     for a1, a2, a3 in product(a1_arms, a2_arms, a3_arms):
-        v = value_of_fixed_strategy(df, a1, a2, a3)
+        v = value_of_fixed_strategy(df, a1, a2, a3, fitted=fitted)
         rows.append({
             "strategy": f"{a1}->{a2}->{a3}",
             "value": v,

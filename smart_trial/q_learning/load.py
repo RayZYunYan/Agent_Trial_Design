@@ -1,17 +1,16 @@
 """Load encounter JSONL files into a flat pandas DataFrame keyed by encounter_id.
 
-Each row = one encounter = one realised three-stage trajectory.
-Downstream feature engineering operates on this DataFrame.
+Accepts either a directory of *.jsonl files or a single encounters.jsonl file.
 """
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 import pandas as pd
 
-from .config import DEFAULT_ENCOUNTERS_DIR, OUTCOME_KEY
+from .config import DEFAULT_ENCOUNTERS_DIR, DEFAULT_ENCOUNTERS_FILE, OUTCOME_KEY
 
 
 REQUIRED_TOP_LEVEL = [
@@ -36,14 +35,41 @@ def _iter_jsonl(path: Path) -> Iterable[Dict[str, Any]]:
                 yield json.loads(line)
 
 
-def load_encounters(encounters_dir: Optional[Path] = None) -> List[Dict[str, Any]]:
-    """Read every *.jsonl under encounters_dir, return list of raw encounter dicts."""
-    encounters_dir = Path(encounters_dir or DEFAULT_ENCOUNTERS_DIR)
-    if not encounters_dir.is_dir():
-        return []
+def _resolve_literacy_id(enc: Dict[str, Any]) -> Optional[str]:
+    lp = enc.get("literacy_persona")
+    if isinstance(lp, dict) and lp.get("persona_id"):
+        return str(lp["persona_id"])
+    # Legacy persona block from older encounter logs (no direct literacy mapping).
+    return None
+
+
+def _resolve_trust_id(enc: Dict[str, Any]) -> Optional[str]:
+    tp = enc.get("trust_persona")
+    if isinstance(tp, dict) and tp.get("persona_id"):
+        return str(tp["persona_id"])
+    return None
+
+
+def load_encounters(source: Optional[Union[Path, str]] = None) -> List[Dict[str, Any]]:
+    """Read encounters from a directory, a single .jsonl file, or defaults."""
+    if source is None:
+        if DEFAULT_ENCOUNTERS_FILE.is_file():
+            source = DEFAULT_ENCOUNTERS_FILE
+        else:
+            source = DEFAULT_ENCOUNTERS_DIR
+
+    path = Path(source)
     out: List[Dict[str, Any]] = []
-    for path in sorted(encounters_dir.glob("*.jsonl")):
+
+    if path.is_file() and path.suffix == ".jsonl":
         out.extend(_iter_jsonl(path))
+        return out
+
+    if path.is_dir():
+        for jsonl_path in sorted(path.glob("*.jsonl")):
+            out.extend(_iter_jsonl(jsonl_path))
+        return out
+
     return out
 
 
@@ -76,7 +102,6 @@ def to_dataframe(encounters: Iterable[Dict[str, Any]]) -> pd.DataFrame:
             "case_category": enc.get("case_category", "Other"),
             "seed": enc.get("seed"),
             "chief_complaint": enc.get("chief_complaint", ""),
-            # Stage 1
             "A1": enc["stage1_arm"],
             "R1_total": r1.get("total"),
             "R1_responder": bool(r1.get("responder", False)),
@@ -86,21 +111,17 @@ def to_dataframe(encounters: Iterable[Dict[str, Any]]) -> pd.DataFrame:
             "R1_meds": r1.get("medications_allergies"),
             "R1_social": r1.get("social_family_history"),
             "stage1_turns": len(stage1_turns),
-            # Stage 2
             "A2": enc["stage2_arm"],
             "stage2_pool": enc.get("stage2_pool"),
             "R2_final_conf": r2.get("final_confidence"),
             "R2_avg_conf": r2.get("avg_confidence"),
             "R2_level": r2.get("confidence_level"),
             "stage2_turns": len(stage2_turns),
-            # Stage 3
             "A3": enc["stage3_arm"],
             "stage3_pool": enc.get("stage3_pool"),
             "stage3_turns": len(stage3_turns),
-            # Personas (optional)
-            "literacy_id": (enc.get("literacy_persona") or {}).get("persona_id"),
-            "trust_id": (enc.get("trust_persona") or {}).get("persona_id"),
-            # Outcome
+            "literacy_id": _resolve_literacy_id(enc),
+            "trust_id": _resolve_trust_id(enc),
             "Y": int(bool(enc["outcome"].get(OUTCOME_KEY))),
             "outcome_red_flag_miss": bool(enc["outcome"].get("red_flag_miss", False)),
             "outcome_dangerous": bool(enc["outcome"].get("dangerous_advice", False)),
@@ -108,6 +129,6 @@ def to_dataframe(encounters: Iterable[Dict[str, Any]]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def load(encounters_dir: Optional[Path] = None) -> pd.DataFrame:
-    """Convenience: load encounters dir and return DataFrame."""
-    return to_dataframe(load_encounters(encounters_dir))
+def load(source: Optional[Union[Path, str]] = None) -> pd.DataFrame:
+    """Convenience: load encounters and return DataFrame."""
+    return to_dataframe(load_encounters(source))

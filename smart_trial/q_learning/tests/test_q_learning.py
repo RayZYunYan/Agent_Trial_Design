@@ -8,7 +8,6 @@ def test_fit_returns_rules_aligned(toy_df):
     res = q_learning.fit(toy_df)
     assert len(res.rules) == len(toy_df)
     assert np.isfinite(res.value)
-    # value is the row-mean of the optimal Q at H1
     assert abs(res.value - float(res.pseudo_y0.mean())) < 1e-9
 
 
@@ -23,5 +22,13 @@ def test_recommendations_respect_pool(toy_df):
 
 
 def test_value_of_fixed_strategy_is_a_number(toy_df):
-    v = q_learning.value_of_fixed_strategy(toy_df, "A1b", "A2a", "A3b")
+    res = q_learning.fit(toy_df)
+    v = q_learning.value_of_fixed_strategy(toy_df, "A1b", "A2a", "A3b", fitted=res)
     assert isinstance(v, float)
+    assert np.isfinite(v)
+
+
+def test_cross_fitted_value(toy_df):
+    v, oof = q_learning.cross_fitted_value(toy_df, n_folds=5, seed=0)
+    assert np.isfinite(v)
+    assert len(oof) == len(toy_df)
