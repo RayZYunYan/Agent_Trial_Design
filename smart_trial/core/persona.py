@@ -1,361 +1,264 @@
 """
-Health-Literacy Persona module for the SMART Trial patient simulator.
+Unified patient persona for SMART Trial patient simulator.
 
-Wraps the existing MediQ Fact-Select PatientAgent with a configurable persona
-that modifies (a) how the patient comprehends doctor jargon and (b) the
-linguistic register of the patient's reply, without changing what facts the
-patient knows or how those facts are selected. Factuality is preserved because
-<<<<<<< HEAD
-the persona only affects how an already-grounded answer is rendered -- it never
-=======
-the persona only affects how an already-grounded answer is rendered — it never
->>>>>>> b09bbc8 (Add health-literacy patient persona)
-re-reads case facts or invents new ones.
+Five axes:
+  vocabulary_register   : functional/interactive/critical  — how the patient expresses themselves
+  jargon_comprehension  : functional/interactive/critical  — what medical terms the patient understands
+  personality           : neutral/anxious/impatient/reserved/verbose/distrustful
+  recall                : high/low — certainty of dates/amounts (underlying fact preserved)
+  emotional_state       : calm/distressed/evasive
 
-MVP axes (v1, per spec):
-- vocabulary_register      F (lay) / I (mixed) / C (clinical)
-- jargon_comprehension     F (silently misinterpret or ask) / I (partial) / C (full)
-- anatomical_localization  F (vague) / I (rough zone) / C (precise region)
-
-Levels map to Nutbeam (2000) three-level health-literacy framework:
-    F = functional  (basic)
-    I = interactive (communicative)
-    C = critical    (advanced)
-
-Loaded from YAML in smart_trial/config/personas/*.yaml.
+Health literacy levels follow Nutbeam (2000):
+  functional  — basic reading/comprehension, everyday language only
+  interactive — common medical terms understood, but not specialist vocabulary
+  critical    — health-literate, may research conditions and use clinical terminology
 """
 
 from __future__ import annotations
 
+import random
+import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import yaml
 
-LEVELS = ("F", "I", "C")
-_AXES = ("vocabulary_register", "jargon_comprehension", "anatomical_localization")
+# ---------------------------------------------------------------------------
+# Valid axis values — used for sampling and validation
+# ---------------------------------------------------------------------------
+PERSONA_AXES: Dict[str, List[str]] = {
+    "vocabulary_register":  ["functional", "interactive", "critical"],
+    "jargon_comprehension": ["functional", "interactive", "critical"],
+    "personality":          ["neutral", "anxious", "impatient", "reserved", "verbose", "distrustful"],
+    "recall":               ["high", "low"],
+    "emotional_state":      ["calm", "distressed", "evasive"],
+}
+
+# ---------------------------------------------------------------------------
+# Jargon term lists (Nutbeam health literacy model)
+# _SPECIALIST_TERMS      : interactive and functional patients don't know these
+# _COMMON_MEDICAL_TERMS  : only functional patients don't know these
+# ---------------------------------------------------------------------------
+_SPECIALIST_TERMS = (
+    "palpitation", "palpitations",
+    "syncope", "presyncope",
+    "dyspnea", "dyspnoea",
+    "orthopnea",
+    "tachycardia", "bradycardia",
+    "diaphoresis",
+    "claudication",
+    "paresthesia", "paraesthesia",
+    "dysphagia",
+    "hemoptysis",
+    "hematuria",
+    "edema", "oedema",
+)
+
+_COMMON_MEDICAL_TERMS = (
+    "radiation", "radiating", "radiate",
+    "review of systems",
+    "chief complaint",
+    "associated symptoms",
+    "exacerbating", "alleviating",
+    "aggravating", "relieving",
+    "onset", "duration", "severity",
+    "constitutional symptoms",
+    "differential",
+    "contraindication",
+)
+
+# ---------------------------------------------------------------------------
+# Per-personality instruction text (injected into system prompt)
+# ---------------------------------------------------------------------------
+_PERSONALITY_INSTRUCTIONS: Dict[str, str] = {
+    "anxious":
+        "You are visibly anxious. Express worry freely and seek reassurance, "
+        "e.g. \"Is that serious?\" or \"Should I be worried about that?\"",
+    "impatient":
+        "You want to finish the visit quickly. Keep answers short and to the point. "
+        "Show mild impatience if the doctor asks too many questions.",
+    "reserved":
+        "You are reluctant to volunteer information. Only answer exactly what is asked "
+        "— make the doctor work to draw out details.",
+    "verbose":
+        "You tend to ramble. Include extra life context and side details even when "
+        "not directly relevant to the question.",
+    "distrustful":
+        "You are skeptical of the doctor. Question their motives when asked sensitive "
+        "questions, e.g. \"Why does that matter?\" or \"Why do you need to know that?\"",
+}
+
+# ---------------------------------------------------------------------------
+# Per-personality uncertain replies (used when no relevant facts found)
+# ---------------------------------------------------------------------------
+_UNCERTAIN_REPLIES: Dict[str, List[str]] = {
+    "neutral":     ["I'm not sure — I haven't really noticed that.", "I'm not certain about that."],
+    "anxious":     ["I'm not sure... is that something I should have noticed?", "I don't know — should I be worried?"],
+    "impatient":   ["I don't know.", "Not sure."],
+    "reserved":    ["I don't know.", "I haven't noticed."],
+    "verbose":     [
+        "Honestly I'm not really sure. I've been so busy lately I haven't paid close attention to that.",
+        "I don't know — I mean, there's been a lot going on, I haven't been keeping track.",
+    ],
+    "distrustful": ["I don't know. Why does that matter?", "Not sure. Why are you asking about that?"],
+}
 
 
 @dataclass
-class HealthLiteracyPersona:
-<<<<<<< HEAD
-=======
-    """
-    Configurable patient persona.
+class PatientPersona:
+    persona_id: str = "default"
+    vocabulary_register: str = "interactive"
+    jargon_comprehension: str = "interactive"
+    personality: str = "neutral"
+    recall: str = "high"
+    emotional_state: str = "calm"
 
-    Construct via `HealthLiteracyPersona.from_yaml(path)`,
-    `HealthLiteracyPersona.from_dict(cfg)`, or directly. The default-arg
-    construction is C/C/C (i.e. a fully literate patient), which is
-    behaviour-equivalent to the original Fact-Select PatientAgent so the
-    persona layer is safe to add without flipping any flags.
-    """
-
->>>>>>> b09bbc8 (Add health-literacy patient persona)
-    persona_id: str = "literacy_C"
-    nutbeam_level: str = "critical"
-    vocabulary_register: str = "C"
-    jargon_comprehension: str = "C"
-    anatomical_localization: str = "C"
-    notes: str = ""
-
-    # ----- construction -----
-
-    @classmethod
-    def from_dict(cls, cfg: Dict[str, Any]) -> "HealthLiteracyPersona":
-        axes = cfg.get("axes") or {}
-        for axis in _AXES:
-            val = axes.get(axis)
-            if val not in LEVELS:
-                raise ValueError(
-                    f"Persona axis {axis!r} must be one of {LEVELS}, got {val!r} "
-                    f"in persona_id={cfg.get('persona_id')!r}"
-                )
-        return cls(
-            persona_id=str(cfg.get("persona_id", "literacy_custom")),
-            nutbeam_level=str(cfg.get("nutbeam_level", "mixed")),
-            vocabulary_register=axes["vocabulary_register"],
-            jargon_comprehension=axes["jargon_comprehension"],
-            anatomical_localization=axes["anatomical_localization"],
-            notes=str(cfg.get("notes", "")),
-        )
-
-    @classmethod
-    def from_yaml(cls, path: Path) -> "HealthLiteracyPersona":
-        with open(path, "r", encoding="utf-8") as f:
-            cfg = yaml.safe_load(f)
-        if not isinstance(cfg, dict):
-<<<<<<< HEAD
-            raise ValueError(f"Persona YAML at {path} must be a mapping")
-        return cls.from_dict(cfg)
-
-    def to_dict(self) -> Dict[str, Any]:
-=======
-            raise ValueError(f"Persona YAML at {path} must be a mapping, got {type(cfg).__name__}")
-        return cls.from_dict(cfg)
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Serialize for JSONL trajectory logging."""
->>>>>>> b09bbc8 (Add health-literacy patient persona)
-        return {
-            "persona_id": self.persona_id,
-            "nutbeam_level": self.nutbeam_level,
-            "axes": {
-                "vocabulary_register": self.vocabulary_register,
-                "jargon_comprehension": self.jargon_comprehension,
-                "anatomical_localization": self.anatomical_localization,
-            },
-        }
-
-    # ----- prompt rendering -----
-
-    _VOCAB_INSTRUCTIONS = {
-        "F": (
-            "Use everyday lay words ONLY. Never use medical terminology. "
-            "Examples: say 'tummy' not 'abdomen', 'pee' not 'urinate', "
-            "'throw up' not 'vomit', 'hurts when I breathe' not 'pleuritic', "
-            "'really bad' not '8 out of 10'."
-        ),
-        "I": (
-            "Use a mix of everyday and basic medical words. You know common "
-            "terms (stomach, urinate, heart attack, blood pressure, infection) "
-            "but not specialist ones."
-        ),
-        "C": (
-            "You are comfortable with medical terminology. Use precise clinical "
-            "words where they fit (epigastric, hematuria, palpitations, dyspnea)."
-        ),
-    }
-
-    _JARGON_INSTRUCTIONS = {
-        "F": (
-            "If the doctor uses a medical term you don't understand (e.g. "
-            "radiation, palpitations, syncope, dyspnea, edema, OPQRST), "
-            "do NOT pretend to understand. Either ask 'what do you mean?' "
-            "or say 'I'm not sure what that means.' Do not silently guess."
-        ),
-        "I": (
-            "You understand common medical terms (heart attack, blood pressure, "
-            "infection) but ask for clarification when the doctor uses specialist "
-            "terms (palpitations, syncope, dyspnea, ischemia)."
-        ),
-        "C": (
-            "You understand the doctor's medical terms and answer them directly "
-            "as intended."
-        ),
-    }
-
-    _ANATOMY_INSTRUCTIONS = {
-        "F": (
-            "Describe where it hurts with vague everyday language: 'around "
-            "here', 'in my chest area', 'kinda in my belly', 'somewhere on "
-            "the side'. Never use precise anatomical terms."
-        ),
-        "I": (
-            "Locate sensations with rough zones: 'upper belly', 'left side of "
-            "my chest', 'lower back', 'behind my eye'. Do not use medical "
-            "quadrants or precise regions."
-        ),
-        "C": (
-            "Locate sensations with precise anatomical language where it "
-            "applies: 'right lower quadrant', 'substernal', 'between my "
-            "shoulder blades', 'left flank'."
-        ),
-    }
-
+    # ------------------------------------------------------------------
+    # System prompt block
+    # ------------------------------------------------------------------
     def render_persona_block(self) -> str:
-<<<<<<< HEAD
-        return "\n".join(
-            [
-                "Patient persona -- you MUST follow these communication rules:",
-=======
-        """
-        Return the persona-instruction block to append to the PatientAgent
-        system prompt. The block describes HOW the patient communicates; it
-        never changes WHAT the patient knows (their atomic facts).
-        """
-        return "\n".join(
-            [
-                "Patient persona — you MUST follow these communication rules:",
->>>>>>> b09bbc8 (Add health-literacy patient persona)
-                f"- Vocabulary: {self._VOCAB_INSTRUCTIONS[self.vocabulary_register]}",
-                f"- Jargon comprehension: {self._JARGON_INSTRUCTIONS[self.jargon_comprehension]}",
-                f"- Locating sensations: {self._ANATOMY_INSTRUCTIONS[self.anatomical_localization]}",
-                "",
-                "These rules describe HOW you communicate. They never change WHAT "
-<<<<<<< HEAD
-                "you know -- do not invent new facts to fit the persona, and do not "
-=======
-                "you know — do not invent new facts to fit the persona, and do not "
->>>>>>> b09bbc8 (Add health-literacy patient persona)
-                "withhold facts you do know just because they sound technical.",
-            ]
-        )
+        """Return instruction text to append to the patient system prompt."""
+        lines: List[str] = []
 
-    # ----- jargon comprehension check (heuristic, no API call) -----
-<<<<<<< HEAD
+        if self.vocabulary_register == "functional":
+            lines.append(
+                "Use very simple everyday words and short sentences. "
+                "Say things like \"my stomach hurts bad\" rather than \"abdominal pain\". "
+                "Never use medical terminology."
+            )
+        elif self.vocabulary_register == "critical":
+            lines.append(
+                "You are articulate and well-informed. You may use terms you looked up, "
+                "e.g. \"I read it could be gastritis\" or \"my blood pressure has been elevated\"."
+            )
 
-=======
-    #
-    # Deterministic substring check on the doctor's message. If a triggering
-    # term appears and the persona's jargon level is F (or I, for the harder
-    # specialist terms), the PatientAgent should short-circuit Fact-Select and
-    # emit a clarification request instead. This is cheap, reproducible, and
-    # easy for reviewers to audit. An LLM-based comprehension check could
-    # replace it later if the heuristic underfits, but it is intentionally
-    # conservative for v1.
+        if self.personality in _PERSONALITY_INSTRUCTIONS:
+            lines.append(_PERSONALITY_INSTRUCTIONS[self.personality])
 
-    # Terms that even a moderate-literacy patient struggles with:
->>>>>>> b09bbc8 (Add health-literacy patient persona)
-    _SPECIALIST_TERMS = (
-        "palpitation", "palpitations",
-        "syncope", "presyncope",
-        "dyspnea", "dyspnoea",
-        "edema", "oedema",
-        "hemoptysis", "haemoptysis",
-        "ischemia", "ischemic", "ischaemia",
-        "epigastric", "substernal", "pleuritic",
-        "hematuria", "haematuria",
-        "hematochezia", "haematochezia",
-        "melena", "melaena",
-        "diaphoresis", "diaphoretic",
-        "orthopnea", "orthopnoea",
-        "tachycardia", "bradycardia",
-        "claudication",
-        "paresthesia", "paraesthesia",
-        "dysphagia",
-<<<<<<< HEAD
-    )
+        if self.recall == "low":
+            lines.append(
+                "You are uncertain about exact dates, durations, and dosages. "
+                "Add hedging language like \"I think it was...\" or \"around that time\" — "
+                "but still state the underlying fact; do not omit or change it."
+            )
 
-=======
-        "hemoptysis",
-    )
+        if self.emotional_state == "distressed":
+            lines.append(
+                "You feel stressed and overwhelmed. Occasionally mention how this affects "
+                "your daily life, e.g. \"I haven't been able to sleep because of this.\""
+            )
+        elif self.emotional_state == "evasive":
+            lines.append(
+                "You are uncomfortable with certain topics. Hesitate before answering "
+                "sensitive questions, but ultimately provide the information if pressed."
+            )
 
-    # Terms only a low-literacy patient would not recognize (in addition to specialist):
->>>>>>> b09bbc8 (Add health-literacy patient persona)
-    _COMMON_MEDICAL_TERMS = (
-        "radiation", "radiating", "radiate",
-        "review of systems", "ros",
-        "opqrst",
-        "differential diagnosis",
-        "presenting complaint",
-        "chief complaint",
-        "associated symptoms",
-        "exacerbating", "alleviating",
-<<<<<<< HEAD
-        "onset",
-=======
-        "onset",  # often paired with "abrupt onset" etc.
->>>>>>> b09bbc8 (Add health-literacy patient persona)
-        "duration",
-        "severity",
-        "aggravating", "relieving",
-        "constitutional symptoms",
-    )
+        if not lines:
+            return ""
+        return "Persona — follow these communication rules:\n" + "\n".join(f"- {l}" for l in lines)
 
+    # ------------------------------------------------------------------
+    # Jargon short-circuit (called in PatientAgent.respond)
+    # ------------------------------------------------------------------
     def detects_jargon(self, doctor_message: str) -> Optional[str]:
-<<<<<<< HEAD
-        if self.jargon_comprehension == "C":
+        """Return the first unrecognised term in doctor_message, or None."""
+        if self.jargon_comprehension == "critical":
             return None
-=======
-        """
-        Return the first triggering term in `doctor_message` that this persona
-        would not understand, or None if the message is within comprehension.
-
-        Behavior by jargon_comprehension level:
-          - C: never triggers (returns None)
-          - I: triggers only on specialist terms
-          - F: triggers on specialist OR common-medical terms
-        """
-        if self.jargon_comprehension == "C":
-            return None
-
->>>>>>> b09bbc8 (Add health-literacy patient persona)
-        text = (doctor_message or "").lower()
-        triggers = list(self._SPECIALIST_TERMS)
-        if self.jargon_comprehension == "F":
-            triggers += list(self._COMMON_MEDICAL_TERMS)
-<<<<<<< HEAD
-=======
-
->>>>>>> b09bbc8 (Add health-literacy patient persona)
+        text = doctor_message.lower()
+        triggers = list(_SPECIALIST_TERMS)
+        if self.jargon_comprehension == "functional":
+            triggers += list(_COMMON_MEDICAL_TERMS)
         for term in triggers:
             if term in text:
                 return term
         return None
 
-    def clarification_request(self, term: str) -> str:
-<<<<<<< HEAD
-        if self.vocabulary_register == "F":
-            return (
-                f"I'm not sure what \"{term}\" means -- could you say that "
-=======
-        """Generate a natural clarification request matching the persona's voice."""
-        if self.vocabulary_register == "F":
-            return (
-                f"I'm not sure what \"{term}\" means — could you say that "
->>>>>>> b09bbc8 (Add health-literacy patient persona)
-                f"in a simpler way?"
-            )
-        if self.vocabulary_register == "I":
-            return f"Sorry, what do you mean by \"{term}\"?"
-        return f"Could you clarify what you mean by \"{term}\"?"
+    def clarification_prompt(self, term: str) -> str:
+        """Return a prompt for the LLM to generate a natural clarification request."""
+        return (
+            f"The doctor just used the term \"{term}\" which you do not understand. "
+            "Ask the doctor to explain it in simpler terms. Stay in character."
+        )
+
+    # ------------------------------------------------------------------
+    # Uncertain reply (used when Fact-Select finds no relevant facts)
+    # ------------------------------------------------------------------
+    def uncertain_reply(self, last_reply: Optional[str] = None) -> str:
+        replies = _UNCERTAIN_REPLIES.get(self.personality, _UNCERTAIN_REPLIES["neutral"])
+        options = [r for r in replies if r != last_reply] or replies
+        return random.choice(options)
+
+    # ------------------------------------------------------------------
+    # Serialization
+    # ------------------------------------------------------------------
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "persona_id":           self.persona_id,
+            "vocabulary_register":  self.vocabulary_register,
+            "jargon_comprehension": self.jargon_comprehension,
+            "personality":          self.personality,
+            "recall":               self.recall,
+            "emotional_state":      self.emotional_state,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "PatientPersona":
+        return cls(
+            persona_id=str(d.get("persona_id", "default")),
+            vocabulary_register=str(d.get("vocabulary_register", "interactive")),
+            jargon_comprehension=str(d.get("jargon_comprehension", "interactive")),
+            personality=str(d.get("personality", "neutral")),
+            recall=str(d.get("recall", "high")),
+            emotional_state=str(d.get("emotional_state", "calm")),
+        )
+
+    @classmethod
+    def from_yaml(cls, path: Path) -> "PatientPersona":
+        with open(path, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+        axes = cfg.get("axes") or cfg
+        axes["persona_id"] = cfg.get("persona_id", path.stem)
+        return cls.from_dict(axes)
+
+    @classmethod
+    def sample(cls, rng: random.Random) -> "PatientPersona":
+        """Randomly sample one persona — reproducible given the same rng."""
+        return cls(
+            persona_id="random",
+            vocabulary_register=rng.choice(PERSONA_AXES["vocabulary_register"]),
+            jargon_comprehension=rng.choice(PERSONA_AXES["jargon_comprehension"]),
+            personality=rng.choice(PERSONA_AXES["personality"]),
+            recall=rng.choice(PERSONA_AXES["recall"]),
+            emotional_state=rng.choice(PERSONA_AXES["emotional_state"]),
+        )
 
 
-# ----- loaders & defaults --------------------------------------------------
-
-<<<<<<< HEAD
-
-=======
->>>>>>> b09bbc8 (Add health-literacy patient persona)
+# ---------------------------------------------------------------------------
+# Loaders
+# ---------------------------------------------------------------------------
 def load_persona_from_id(
     persona_id: str,
     personas_dir: Optional[Path] = None,
-) -> HealthLiteracyPersona:
-<<<<<<< HEAD
-=======
-    """Load `<persona_id>.yaml` from the personas directory."""
->>>>>>> b09bbc8 (Add health-literacy patient persona)
+) -> PatientPersona:
     if personas_dir is None:
         personas_dir = Path(__file__).resolve().parent.parent / "config" / "personas"
     path = personas_dir / f"{persona_id}.yaml"
-    return HealthLiteracyPersona.from_yaml(path)
+    if not path.exists():
+        raise FileNotFoundError(f"Persona YAML not found: {path}")
+    return PatientPersona.from_yaml(path)
 
 
 def select_default_persona_id(case: Dict[str, Any]) -> str:
-    """
-    Demographically-informed default persona for a case.
-
-<<<<<<< HEAD
-    NOTE: imports demographic stereotypes by design. For controlled
-    experiments use `trial_config.persona.mode: fixed` to override.
-
-    Heuristic:
-        age < 18 or age >= 70  -> literacy_F
-        age 18..69             -> literacy_I
-=======
-    NOTE: This imports demographic stereotypes by design (older adults default
-    to lower literacy levels). The trade-off is documented in the spec — for
-    controlled experiments use `trial_config.persona.mode: fixed` to override.
-
-    Heuristic (intentionally simple for v1):
-        age < 18 or age >= 70  -> literacy_F
-        age 50..69             -> literacy_I
-        age 18..49             -> literacy_I
->>>>>>> b09bbc8 (Add health-literacy patient persona)
-        age unknown            -> literacy_I
-    """
+    """Demographic default: younger/middle-aged adults → default, children/elderly → low_literacy."""
     age_raw = case.get("age")
     try:
-        age = int(str(age_raw).strip()) if age_raw not in (None, "") else None
-    except (ValueError, TypeError):
+        match = re.search(r"\d+", str(age_raw)) if age_raw else None
+        age = int(match.group()) if match else None
+    except (AttributeError, ValueError):
         age = None
-<<<<<<< HEAD
-=======
-
->>>>>>> b09bbc8 (Add health-literacy patient persona)
     if age is None:
-        return "literacy_I"
+        return "default"
     if age < 18 or age >= 70:
-        return "literacy_F"
-    return "literacy_I"
+        return "low_literacy"
+    return "default"

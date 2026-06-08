@@ -1,7 +1,7 @@
-persona_id: "literacy_F"
+persona_id: "low_literacy"
 axes:
   vocabulary_register: "functional"
   jargon_comprehension: "functional"
   personality: "neutral"
-  recall: "high"
+  recall: "low"
   emotional_state: "calm"

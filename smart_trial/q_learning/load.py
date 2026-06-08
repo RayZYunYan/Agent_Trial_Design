@@ -39,7 +39,9 @@ def _resolve_literacy_id(enc: Dict[str, Any]) -> Optional[str]:
     lp = enc.get("literacy_persona")
     if isinstance(lp, dict) and lp.get("persona_id"):
         return str(lp["persona_id"])
-    # Legacy persona block from older encounter logs (no direct literacy mapping).
+    persona = enc.get("persona")
+    if isinstance(persona, dict) and persona.get("persona_id"):
+        return str(persona["persona_id"])
     return None
 
 

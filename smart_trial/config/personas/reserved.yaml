@@ -1,7 +1,7 @@
-persona_id: "literacy_I"
+persona_id: "reserved"
 axes:
   vocabulary_register: "interactive"
   jargon_comprehension: "interactive"
-  personality: "neutral"
+  personality: "reserved"
   recall: "high"
   emotional_state: "calm"

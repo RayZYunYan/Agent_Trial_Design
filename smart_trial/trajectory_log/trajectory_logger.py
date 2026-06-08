@@ -19,8 +19,7 @@ class TrajectoryLogger:
         case: Dict[str, Any],
         seed: int,
         stage1_arm: str,
-        literacy_persona: Optional[Dict[str, Any]] = None,
-        trust_persona: Optional[Dict[str, Any]] = None,
+        persona: Optional[Dict[str, Any]] = None,
     ) -> None:
         self._turns = []
         self._stage2_confidences = []
@@ -31,9 +30,8 @@ class TrajectoryLogger:
             "chief_complaint": case.get("chief_complaint", ""),
             "ground_truth": case.get("ground_truth_answer", ""),
             "seed": seed,
+            "persona": persona or {},
             "stage1_arm": stage1_arm,
-            "literacy_persona": literacy_persona,
-            "trust_persona": trust_persona,
             "R1": None,
             "stage2_arm": None,
             "R2": None,

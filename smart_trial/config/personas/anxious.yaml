@@ -1,7 +1,7 @@
-persona_id: "literacy_I"
+persona_id: "anxious"
 axes:
   vocabulary_register: "interactive"
   jargon_comprehension: "interactive"
-  personality: "neutral"
+  personality: "anxious"
   recall: "high"
-  emotional_state: "calm"
+  emotional_state: "distressed"

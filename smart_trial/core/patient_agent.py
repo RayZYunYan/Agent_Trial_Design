@@ -1,29 +1,14 @@
 """
 Patient simulator: MediQ Fact-Select style (atomic facts + relevance selection).
-Compatible with precomputed `atomic_facts` from local JSONL loader.
-
-Optional health-literacy persona (see core/persona.py) wraps this agent with
-configurable communication behavior. When a persona is attached:
-  - The persona's instruction block is appended to the system prompt.
-  - Doctor messages are first passed through a jargon-comprehension check.
-    If the patient's literacy level cannot parse a term in the question, the
-    Fact-Select pipeline is bypassed and a clarification request is returned
-    in the persona's voice.
-Factuality is preserved because the persona only changes how the patient
-communicates -- it never modifies the atomic-fact retrieval or generation.
+Optional PatientPersona (see core/persona.py) modifies HOW the patient communicates
+without changing WHAT they know — Fact-Select factuality is preserved.
 """
 
-<<<<<<< HEAD
+import random
 import re
 from typing import Any, Dict, List, Optional
 
-from smart_trial.core.persona import HealthLiteracyPersona
-from smart_trial.core.trust_disclosure_persona import TrustDisclosurePersona
-=======
-from typing import Any, Dict, List, Optional
-
-from smart_trial.core.persona import HealthLiteracyPersona
->>>>>>> b09bbc8 (Add health-literacy patient persona)
+from smart_trial.core.persona import PatientPersona
 from smart_trial.models.model_client import ModelClient
 
 _BASE_RULES = """Rules:
@@ -33,7 +18,6 @@ _BASE_RULES = """Rules:
 4. Do not guess or make up information.
 5. Reply only in English, even if the doctor accidentally uses another language."""
 
-<<<<<<< HEAD
 
 def parse_age_years(age: Any) -> Optional[int]:
     """Extract patient age in years from loader fields like '21 years old' or 21."""
@@ -78,7 +62,38 @@ def _child_reference_word(gender: str) -> str:
     return "child"
 
 
-def build_patient_system_prompt(case: Dict[str, Any]) -> str:
+def communication_cues(case: Dict[str, Any]) -> List[str]:
+    """Detect special communication contexts from case text and return behaviour cues."""
+    record = case.get("full_record") or case.get("chief_complaint") or ""
+    cues: List[str] = []
+
+    if re.search(
+        r'\bsexual(?:ly)?\b|\bSTI\b|\bSTD\b|\burination\b|\bgenital\b|\bintercourse\b',
+        record, re.IGNORECASE,
+    ):
+        cues.append(
+            "Be comfortable sharing sexual-health details; avoid assumptions or stereotypes."
+        )
+
+    if re.search(
+        r'\baccuse[sd]?\b|\bparanoi\b|\bhostile\b|\bdelusional\b|\bhallucinat\b',
+        record, re.IGNORECASE,
+    ):
+        cues.append("You may sound guarded or suspicious of the doctor's intentions.")
+
+    if re.search(
+        r'\bworks?\s+as\b|\bemployed\b|\blogger\b|\boccupation\b|\bjob\b|\bprofession\b',
+        record, re.IGNORECASE,
+    ):
+        cues.append("When relevant, naturally mention your work or school situation.")
+
+    return cues
+
+
+def build_patient_system_prompt(
+    case: Dict[str, Any],
+    persona: Optional[PatientPersona] = None,
+) -> str:
     age_years = parse_age_years(case.get("age"))
     band = age_voice_band(age_years)
     gender = case.get("gender") or "unknown"
@@ -117,23 +132,49 @@ def build_patient_system_prompt(case: Dict[str, Any]) -> str:
             "Use normal, everyday conversational English."
         )
 
+    cues = communication_cues(case)
+    cues_section = ""
+    if cues:
+        cues_text = "\n".join(f"- {c}" for c in cues)
+        cues_section = f"\n\nCommunication notes:\n{cues_text}"
+
+    persona_section = ""
+    if persona is not None:
+        block = persona.render_persona_block()
+        if block:
+            persona_section = f"\n\n{block}"
+
     return (
         f"{role}\n\n"
         "Answer only from the facts you have been given about this case.\n\n"
         f"{_BASE_RULES}"
+        f"{cues_section}"
+        f"{persona_section}"
     )
 
 
-def default_uncertain_reply(case: Dict[str, Any]) -> str:
+def default_uncertain_reply(
+    case: Dict[str, Any],
+    persona: Optional[PatientPersona] = None,
+    last_reply: Optional[str] = None,
+) -> str:
     age_years = parse_age_years(case.get("age"))
     band = age_voice_band(age_years)
     if band == "child_parent":
         return "I'm not sure — we haven't really noticed that about our child."
     if band == "teen":
-        return "Um, I'm not really sure — I haven't noticed that."
-    if band == "older_adult":
-        return "I'm afraid I'm not certain — I haven't noticed that, honestly."
-    return "I'm not sure — I haven't really noticed that."
+        pool = [
+            "Um, I'm not really sure — I haven't noticed that.",
+            "Honestly no idea.",
+            "I don't really know.",
+        ]
+        options = [r for r in pool if r != last_reply] or pool
+        return random.choice(options)
+    if persona is not None:
+        return persona.uncertain_reply(last_reply=last_reply)
+    replies = ["I'm not sure — I haven't really noticed that.", "I'm not certain about that."]
+    options = [r for r in replies if r != last_reply] or replies
+    return random.choice(options)
 
 
 def answer_style_instruction(case: Dict[str, Any]) -> str:
@@ -150,64 +191,22 @@ def answer_style_instruction(case: Dict[str, Any]) -> str:
 
 
 class PatientAgent:
-    """Fact-Select patient simulator with age-appropriate voice in the system prompt.
+    """Fact-Select patient simulator with age-appropriate voice and optional persona."""
 
-    Two optional persona layers, both additive and orthogonal:
-      - `literacy_persona` (see core/persona.py) controls HOW the patient
-        communicates: vocabulary register, jargon comprehension, anatomical
-        localization. Adds a jargon short-circuit -- when the doctor uses a
-        term the patient doesn't understand, the encounter returns a
-        clarification request instead of running Fact-Select.
-      - `trust_persona` (see core/trust_disclosure_persona.py) controls
-        WHAT the patient is willing to share: trust level, concealed topics,
-        reaction to insensitive questioning. Adds an opener-aware fact
-        filter -- facts on concealed topics are suppressed unless the doctor
-        opens with normalizing / patient-centered phrasing.
-    Factuality is preserved: neither persona modifies the underlying atomic
-    facts; both only change how those facts are surfaced.
-    """
-
-=======
->>>>>>> b09bbc8 (Add health-literacy patient persona)
     def __init__(
         self,
         model_client: ModelClient,
         case: Dict[str, Any],
-<<<<<<< HEAD
-        literacy_persona: Optional[HealthLiteracyPersona] = None,
-        trust_persona: Optional[TrustDisclosurePersona] = None,
-    ):
-        self.model = model_client
-        self.case = case
-        self.literacy_persona = literacy_persona
-        self.trust_persona = trust_persona
-        self.system_prompt = build_patient_system_prompt(case)
-=======
-        persona: Optional[HealthLiteracyPersona] = None,
+        persona: Optional[PatientPersona] = None,
     ):
         self.model = model_client
         self.case = case
         self.persona = persona
->>>>>>> b09bbc8 (Add health-literacy patient persona)
+        self.system_prompt = build_patient_system_prompt(case, persona=persona)
         self.atomic_facts: List[str] = []
         self.conversation_history: List[Dict[str, str]] = []
+        self._last_uncertain_reply: Optional[str] = None
         self._init_facts()
-
-    def _effective_system_prompt(self) -> str:
-<<<<<<< HEAD
-        """Per-call system prompt including any attached persona blocks."""
-        parts: List[str] = [self.system_prompt]
-        if self.literacy_persona is not None:
-            parts.append(self.literacy_persona.render_persona_block())
-        if self.trust_persona is not None:
-            parts.append(self.trust_persona.render_persona_block())
-        return "\n\n".join(parts)
-=======
-        """System prompt with the persona instruction block appended (if any)."""
-        if self.persona is None:
-            return self.SYSTEM_PROMPT
-        return self.SYSTEM_PROMPT + "\n\n" + self.persona.render_persona_block()
->>>>>>> b09bbc8 (Add health-literacy patient persona)
 
     def _init_facts(self) -> None:
         pre = self.case.get("atomic_facts") or []
@@ -246,46 +245,32 @@ Output only the numbered fact list in English:"""
             self.atomic_facts = [record[:500]] if record else ["I came to see the doctor today."]
 
     def respond(self, doctor_message: str) -> str:
-<<<<<<< HEAD
-        # Literacy persona jargon short-circuit: if the patient cannot parse
-        # a term in the doctor's question, skip Fact-Select and return a
-        # clarification request in the persona's voice. Models real
-        # low-literacy patients who ask "what does that mean?" first.
-        if self.literacy_persona is not None:
-            unknown_term = self.literacy_persona.detects_jargon(doctor_message)
-            if unknown_term is not None:
-                answer = self.literacy_persona.clarification_request(unknown_term)
-=======
-        # Persona jargon short-circuit: if the persona cannot parse a term in
-        # the doctor's question, skip Fact-Select and emit a clarification
-        # request in the persona's voice. This models real low-literacy
-        # patients who ask "what does that mean?" before answering.
+        # Jargon short-circuit: patient asks for clarification instead of answering
         if self.persona is not None:
-            unknown_term = self.persona.detects_jargon(doctor_message)
-            if unknown_term is not None:
-                answer = self.persona.clarification_request(unknown_term)
->>>>>>> b09bbc8 (Add health-literacy patient persona)
+            term = self.persona.detects_jargon(doctor_message)
+            if term is not None:
+                prompt = self.persona.clarification_prompt(term)
+                answer = self.model.chat(
+                    [{"role": "user", "content": prompt}],
+                    system_prompt=self.system_prompt,
+                    temperature=0.5,
+                )
                 self.conversation_history.append({"role": "doctor", "content": doctor_message})
                 self.conversation_history.append({"role": "patient", "content": answer})
                 return answer
 
         relevant = self._select_relevant_facts(doctor_message)
-
-        # Trust & Disclosure persona: filter out concealed-topic facts unless
-        # the doctor's question contained a trust-respecting opener. If the
-        # filter empties the selection, the patient declines to disclose and
-        # the default uncertain reply is used -- modeling the wary patient
-        # who answers "not really" instead of surfacing the hidden topic.
-        if self.trust_persona is not None and relevant:
-            relevant = self.trust_persona.filter_facts(relevant, doctor_message)
-
         if not relevant:
-            answer = default_uncertain_reply(self.case)
+            answer = default_uncertain_reply(
+                self.case, persona=self.persona, last_reply=self._last_uncertain_reply
+            )
+            self._last_uncertain_reply = answer
         else:
             facts_text = "\n".join(f"- {f}" for f in relevant)
             style = answer_style_instruction(self.case)
             prompt = f"""Using only the facts below, answer the doctor's question.
 {style}
+Stay in character throughout your response.
 
 Facts you know:
 {facts_text}
@@ -295,7 +280,7 @@ Doctor's question: {doctor_message}
 Your answer (English only):"""
             answer = self.model.chat(
                 [{"role": "user", "content": prompt}],
-                system_prompt=self._effective_system_prompt(),
+                system_prompt=self.system_prompt,
                 temperature=0.3,
             )
 

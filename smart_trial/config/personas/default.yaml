@@ -1,4 +1,4 @@
-persona_id: "literacy_I"
+persona_id: "default"
 axes:
   vocabulary_register: "interactive"
   jargon_comprehension: "interactive"

@@ -1,4 +1,5 @@
 import os
+import random
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -8,17 +9,15 @@ from smart_trial.core.doctor_agent import DoctorAgent, load_arm_config
 from smart_trial.core.judge import StageJudge
 from smart_trial.core.patient_agent import PatientAgent
 from smart_trial.core.persona import (
-    HealthLiteracyPersona,
+    PatientPersona,
     load_persona_from_id,
     select_default_persona_id,
 )
 from smart_trial.core.randomizer import TrialRandomizer
-from smart_trial.core.trust_disclosure_persona import (
-    TrustDisclosurePersona,
-    load_trust_persona_from_id,
-)
 from smart_trial.trajectory_log.trajectory_logger import TrajectoryLogger
 from smart_trial.models.model_client import ModelClient
+
+
 
 SMART_TRIAL_ROOT = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = SMART_TRIAL_ROOT.parent
@@ -63,47 +62,25 @@ class TrialOrchestrator:
 
         self._arms_dir = SMART_TRIAL_ROOT / "config" / "arms"
         self._personas_dir = SMART_TRIAL_ROOT / "config" / "personas"
-<<<<<<< HEAD
-        self._trust_personas_dir = SMART_TRIAL_ROOT / "config" / "personas_trust"
 
-    def _resolve_literacy_persona(
-        self, case: Dict[str, Any]
-    ) -> Optional[HealthLiteracyPersona]:
-        """Pick the literacy persona for this case based on trial_config.persona.mode."""
+    def _resolve_persona(
+        self, case: Dict[str, Any], rng: random.Random
+    ) -> Optional[PatientPersona]:
         cfg = self.config.get("persona") or {}
-        mode = str(cfg.get("mode", "off")).lower()
+        mode = str(cfg.get("mode", "random")).lower()
         if mode == "off":
             return None
         if mode == "fixed":
-            pid = str(cfg.get("fixed_id", "literacy_I"))
-            return load_persona_from_id(pid, self._personas_dir)
+            return load_persona_from_id(str(cfg.get("fixed_id", "default")), self._personas_dir)
+        if mode == "random":
+            case_rng = random.Random(rng.randint(0, 2**32) ^ hash(case.get("case_id", "")))
+            return PatientPersona.sample(case_rng)
         if mode == "demographic":
-            pid = select_default_persona_id(case)
-            return load_persona_from_id(pid, self._personas_dir)
+            return load_persona_from_id(select_default_persona_id(case), self._personas_dir)
         if mode == "per_case":
-            case_pid = case.get("persona")
-            pid = str(case_pid) if case_pid else select_default_persona_id(case)
-            return load_persona_from_id(pid, self._personas_dir)
+            pid = case.get("persona_id") or select_default_persona_id(case)
+            return load_persona_from_id(str(pid), self._personas_dir)
         raise ValueError(f"Unknown persona.mode: {mode!r}")
-
-    def _resolve_trust_persona(
-        self, case: Dict[str, Any]
-    ) -> Optional[TrustDisclosurePersona]:
-        """Pick the trust persona for this case based on trial_config.trust_persona.mode."""
-        cfg = self.config.get("trust_persona") or {}
-        mode = str(cfg.get("mode", "off")).lower()
-        if mode == "off":
-            return None
-        fixed_id = str(cfg.get("fixed_id", "cooperative"))
-        if mode == "fixed":
-            return load_trust_persona_from_id(fixed_id, self._trust_personas_dir)
-        if mode == "per_case":
-            case_pid = case.get("trust_persona")
-            pid = str(case_pid) if case_pid else fixed_id
-            return load_trust_persona_from_id(pid, self._trust_personas_dir)
-        raise ValueError(f"Unknown trust_persona.mode: {mode!r}")
-=======
->>>>>>> b09bbc8 (Add health-literacy patient persona)
 
     def _make_client(self, role: str) -> ModelClient:
         cfg = dict(self.config["models"][role])
@@ -116,34 +93,12 @@ class TrialOrchestrator:
             temperature=float(cfg.get("temperature", 0.5)),
         )
 
-    def _resolve_persona(self, case: Dict[str, Any]) -> Optional[HealthLiteracyPersona]:
-        """
-        Pick the persona for this case based on trial_config.persona.mode.
-
-        Modes:
-          off          -> return None (existing MediQ Fact-Select behavior)
-          fixed        -> persona.fixed_id for every case
-          demographic  -> select_default_persona_id(case) (stereotype caveat)
-          per_case     -> case["persona"] if set, else demographic fallback
-        """
-        cfg = self.config.get("persona") or {}
-        mode = str(cfg.get("mode", "off")).lower()
-
-        if mode == "off":
-            return None
-        if mode == "fixed":
-            pid = str(cfg.get("fixed_id", "literacy_I"))
-            return load_persona_from_id(pid, self._personas_dir)
-        if mode == "demographic":
-            pid = select_default_persona_id(case)
-            return load_persona_from_id(pid, self._personas_dir)
-        if mode == "per_case":
-            case_pid = case.get("persona")
-            pid = str(case_pid) if case_pid else select_default_persona_id(case)
-            return load_persona_from_id(pid, self._personas_dir)
-        raise ValueError(f"Unknown persona.mode: {mode!r}")
-
-    def run_encounter(self, case: Dict[str, Any], seed: Optional[int] = None) -> Dict[str, Any]:
+    def run_encounter(
+        self,
+        case: Dict[str, Any],
+        seed: Optional[int] = None,
+        persona: Optional[PatientPersona] = None,
+    ) -> Dict[str, Any]:
         if seed is None:
             seed = int(self.config.get("randomization", {}).get("seed", 42))
 
@@ -151,64 +106,24 @@ class TrialOrchestrator:
         randomizer = TrialRandomizer(seed, stratify_by=rand_cfg.get("stratify_by", "case_category"))
         logger = TrajectoryLogger(str(self._output_dir))
 
+        rng = random.Random(seed)
+        if persona is None:
+            persona = self._resolve_persona(case, rng)
+
         stage1_arm_id = randomizer.assign_stage1_arm(case)
         stage1_arm = load_arm_config(stage1_arm_id, self._arms_dir)
-<<<<<<< HEAD
-        literacy_persona = self._resolve_literacy_persona(case)
-        trust_persona = self._resolve_trust_persona(case)
-=======
-        persona = self._resolve_persona(case)
->>>>>>> b09bbc8 (Add health-literacy patient persona)
 
         print(f"\n{'=' * 60}")
         print(f"Case: {case['case_id']} | {case.get('case_category', '')}")
         print(f"Chief Complaint: {case.get('chief_complaint', '')}")
         print(f"Stage 1 Arm: {stage1_arm_id} ({stage1_arm.get('name', '')})")
-<<<<<<< HEAD
-        if literacy_persona is not None:
-            print(
-                f"Literacy Persona: {literacy_persona.persona_id} "
-                f"({literacy_persona.nutbeam_level}) "
-                f"[axes: {literacy_persona.vocabulary_register}/"
-                f"{literacy_persona.jargon_comprehension}/"
-                f"{literacy_persona.anatomical_localization}]"
-            )
-        if trust_persona is not None:
-            print(
-                f"Trust Persona: {trust_persona.persona_id} "
-                f"[trust={trust_persona.trust_in_clinician}, "
-                f"concealed={trust_persona.concealed_topics}, "
-                f"reaction={trust_persona.reaction_to_insensitive}]"
-=======
-        if persona is not None:
-            print(
-                f"Persona: {persona.persona_id} ({persona.nutbeam_level}) "
-                f"[axes: {persona.vocabulary_register}/"
-                f"{persona.jargon_comprehension}/{persona.anatomical_localization}]"
->>>>>>> b09bbc8 (Add health-literacy patient persona)
-            )
+        print(f"Persona: {persona}")
         print(f"{'=' * 60}\n")
 
         doctor = DoctorAgent(self.doctor_model, stage1_arm)
-<<<<<<< HEAD
-        patient = PatientAgent(
-            self.patient_model, case,
-            literacy_persona=literacy_persona,
-            trust_persona=trust_persona,
-        )
-
-        logger.start_encounter(
-            case, seed, stage1_arm_id,
-            literacy_persona=(literacy_persona.to_dict() if literacy_persona else None),
-            trust_persona=(trust_persona.to_dict() if trust_persona else None),
-=======
         patient = PatientAgent(self.patient_model, case, persona=persona)
 
-        logger.start_encounter(
-            case, seed, stage1_arm_id,
-            persona=(persona.to_dict() if persona is not None else None),
->>>>>>> b09bbc8 (Add health-literacy patient persona)
-        )
+        logger.start_encounter(case, seed, stage1_arm_id, persona=persona.to_dict() if persona else None)
 
         initial_msg = doctor.get_initial_message(case)
         print(f"[Opening]\nDoctor: {initial_msg}\n")
@@ -304,7 +219,6 @@ class TrialOrchestrator:
             case=case,
             conversation_history=doctor.conversation_history,
             R2=R2,
-            concealed_topics=(trust_persona.concealed_topics if trust_persona else None),
         )
 
         trajectory = logger.finalize(outcome)
