@@ -1,0 +1,7 @@
+persona_id: "literacy_F"
+axes:
+  vocabulary_register: "functional"
+  jargon_comprehension: "functional"
+  personality: "neutral"
+  recall: "high"
+  emotional_state: "calm"

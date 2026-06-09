@@ -1,0 +1,7 @@
+persona_id: "literacy_C"
+axes:
+  vocabulary_register: "critical"
+  jargon_comprehension: "critical"
+  personality: "neutral"
+  recall: "high"
+  emotional_state: "calm"

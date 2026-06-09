@@ -1,0 +1,7 @@
+persona_id: "literacy_I"
+axes:
+  vocabulary_register: "interactive"
+  jargon_comprehension: "interactive"
+  personality: "neutral"
+  recall: "high"
+  emotional_state: "calm"
