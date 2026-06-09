@@ -26,6 +26,42 @@ REQUIRED_TOP_LEVEL = [
     "trajectory",
 ]
 
+# Map persona fields → literacy_F / literacy_I / literacy_C for H1 features.
+# New PatientPersona uses vocabulary_register (Nutbeam functional/interactive/critical).
+# Legacy logs used language_level (basic/intermediate/advanced) from pre-unified personas.
+_REGISTER_TO_LITERACY = {
+    "functional": "literacy_F",
+    "interactive": "literacy_I",
+    "critical": "literacy_C",
+    "f": "literacy_F",
+    "i": "literacy_I",
+    "c": "literacy_C",
+}
+_LANGUAGE_LEVEL_TO_LITERACY = {
+    "basic": "literacy_F",
+    "intermediate": "literacy_I",
+    "advanced": "literacy_C",
+}
+_PERSONA_ID_TO_LITERACY = {
+    "literacy_F": "literacy_F",
+    "literacy_I": "literacy_I",
+    "literacy_C": "literacy_C",
+    "low_literacy": "literacy_F",
+    "default": "literacy_I",
+}
+
+
+def _register_value_to_literacy(value: Any) -> Optional[str]:
+    """Normalize a register / language_level string to literacy_F/I/C."""
+    if value is None:
+        return None
+    key = str(value).strip().lower()
+    if key in _REGISTER_TO_LITERACY:
+        return _REGISTER_TO_LITERACY[key]
+    if key in _LANGUAGE_LEVEL_TO_LITERACY:
+        return _LANGUAGE_LEVEL_TO_LITERACY[key]
+    return None
+
 
 def _iter_jsonl(path: Path) -> Iterable[Dict[str, Any]]:
     with path.open("r", encoding="utf-8") as f:
@@ -35,20 +71,45 @@ def _iter_jsonl(path: Path) -> Iterable[Dict[str, Any]]:
                 yield json.loads(line)
 
 
-def _resolve_literacy_id(enc: Dict[str, Any]) -> Optional[str]:
-    lp = enc.get("literacy_persona")
-    if isinstance(lp, dict) and lp.get("persona_id"):
-        return str(lp["persona_id"])
-    persona = enc.get("persona")
-    if isinstance(persona, dict) and persona.get("persona_id"):
-        return str(persona["persona_id"])
+def _literacy_from_persona_block(block: Dict[str, Any]) -> Optional[str]:
+    """Derive literacy_F/I/C from a logged persona dict (main or legacy format)."""
+    pid = block.get("persona_id")
+    if pid is not None:
+        pid_str = str(pid)
+        if pid_str in _PERSONA_ID_TO_LITERACY:
+            return _PERSONA_ID_TO_LITERACY[pid_str]
+        if pid_str.startswith("literacy_"):
+            return pid_str
+
+    for field in ("vocabulary_register", "jargon_comprehension", "language_level"):
+        lit = _register_value_to_literacy(block.get(field))
+        if lit:
+            return lit
+
+    # Legacy HealthLiteracyPersona axes (F / I / C) nested under "axes".
+    axes = block.get("axes")
+    if isinstance(axes, dict):
+        for field in ("vocabulary_register", "jargon_comprehension", "language_level"):
+            lit = _register_value_to_literacy(axes.get(field))
+            if lit:
+                return lit
+
     return None
 
 
-def _resolve_trust_id(enc: Dict[str, Any]) -> Optional[str]:
-    tp = enc.get("trust_persona")
-    if isinstance(tp, dict) and tp.get("persona_id"):
-        return str(tp["persona_id"])
+def _resolve_literacy_id(enc: Dict[str, Any]) -> Optional[str]:
+    lp = enc.get("literacy_persona")
+    if isinstance(lp, dict):
+        lit = _literacy_from_persona_block(lp)
+        if lit:
+            return lit
+
+    persona = enc.get("persona")
+    if isinstance(persona, dict):
+        lit = _literacy_from_persona_block(persona)
+        if lit:
+            return lit
+
     return None
 
 
@@ -123,7 +184,6 @@ def to_dataframe(encounters: Iterable[Dict[str, Any]]) -> pd.DataFrame:
             "stage3_pool": enc.get("stage3_pool"),
             "stage3_turns": len(stage3_turns),
             "literacy_id": _resolve_literacy_id(enc),
-            "trust_id": _resolve_trust_id(enc),
             "Y": int(bool(enc["outcome"].get(OUTCOME_KEY))),
             "outcome_red_flag_miss": bool(enc["outcome"].get("red_flag_miss", False)),
             "outcome_dangerous": bool(enc["outcome"].get("dangerous_advice", False)),

@@ -158,7 +158,6 @@ def generate_synthetic_trajectories(
         "stage3_pool": r2_level,
         "stage3_turns": np.full(n, 3),
         "literacy_id": "literacy_I",
-        "trust_id": "cooperative",
         "Y": y,
         "outcome_red_flag_miss": np.zeros(n, dtype=bool),
         "outcome_dangerous": np.zeros(n, dtype=bool),

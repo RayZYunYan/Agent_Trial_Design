@@ -42,5 +42,6 @@ run_main_analysis.py   end-to-end
 ## Caveats
 
 - Sample size remains the binding constraint for real data (see `diagnostics.csv`).
-- Literacy features require `literacy_persona` in logs; legacy `persona` block is not mapped.
+- Literacy features use `literacy_id` derived from the log `persona` block
+  (`vocabulary_register` → literacy_F/I/C) or legacy `literacy_persona`.
 - Counterfactual H holds R1/R2 fixed when swapping A1/A2 (documented structural assumption).

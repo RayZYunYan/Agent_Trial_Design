@@ -58,7 +58,6 @@ def toy_df() -> pd.DataFrame:
         "stage3_pool": r2_level,
         "stage3_turns": 3,
         "literacy_id": "literacy_I",
-        "trust_id": "cooperative",
         "Y": y,
         "outcome_red_flag_miss": False,
         "outcome_dangerous": False,
