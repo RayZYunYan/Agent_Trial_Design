@@ -36,9 +36,6 @@ def load_arm_config(arm_id: str, arms_dir: Optional[Path] = None) -> Dict[str, A
         "A2a": "stage2_A2a",
         "A2b": "stage2_A2b",
         "A2c": "stage2_A2c",
-        "A3a": "stage3_A3a",
-        "A3b": "stage3_A3b",
-        "A3c": "stage3_A3c",
     }
     filename = stage_map.get(arm_id, arm_id)
     if arms_dir is None:
@@ -64,20 +61,17 @@ Rules:
 - Do not dump long lectures or multiple unrelated questions in one turn.
 - The patient scenario and chief complaint are in English: you MUST speak and write only in English in every message."""
 
-    CONCLUSION_MARKERS = [
-        "based on your symptoms",
-        "most likely diagnosis",
-        "i believe you have",
-        "my assessment is",
-        "you should go to",
-        "emergency department",
-        "final diagnosis",
-        "[DIAGNOSIS]",
-        "[CONCLUSION]",
-        "my impression is",
-        "working diagnosis",
-        "in summary",
-    ]
+    # Only the explicit [DIAGNOSIS] marker counts as a conclusion: looser phrases
+    # ("working diagnosis", "my impression is", ...) occur in normal Stage-2
+    # questioning and would terminate the encounter prematurely.
+    CONCLUSION_MARKER = "[DIAGNOSIS]"
+
+    FINAL_TURN_INSTRUCTION = (
+        "IMPORTANT: This is your final turn of the visit. Do not ask any more "
+        "questions. Deliver your final assessment now, following the "
+        "'Delivering Your Final Assessment' format: line 1 must be "
+        "[CONFIDENCE: 0.XX] and the [DIAGNOSIS] line must come immediately after."
+    )
 
     def __init__(self, model_client: ModelClient, initial_arm_config: Dict[str, Any]):
         self.model = model_client
@@ -93,12 +87,14 @@ Rules:
         self.current_arm = new_arm_config
         self.current_stage = int(new_arm_config.get("stage", self.current_stage))
 
-    def respond(self, patient_message: str) -> Tuple[str, Optional[float]]:
+    def respond(self, patient_message: str, force_conclude: bool = False) -> Tuple[str, Optional[float]]:
         self.turn_count += 1
         if patient_message:
             self.conversation_history.append({"role": "user", "content": patient_message})
 
         system_prompt = self._build_system_prompt()
+        if force_conclude:
+            system_prompt = f"{system_prompt}\n\n{self.FINAL_TURN_INSTRUCTION}"
         response = self.model.chat(
             messages=self._conversation_for_api(),
             system_prompt=system_prompt,
@@ -108,8 +104,6 @@ Rules:
         if self.current_stage == 2:
             confidence, response = self._extract_confidence(response)
             self._last_confidence = confidence
-
-        if self.current_stage == 3:
             self._check_conclusion(response)
 
         self.conversation_history.append({"role": "assistant", "content": response})
@@ -132,12 +126,9 @@ Rules:
         return None, response
 
     def _check_conclusion(self, response: str) -> None:
-        response_lower = response.lower()
-        for marker in self.CONCLUSION_MARKERS:
-            if marker.lower() in response_lower:
-                self._has_concluded = True
-                self._final_diagnosis = response
-                break
+        if self.CONCLUSION_MARKER in response:
+            self._has_concluded = True
+            self._final_diagnosis = response
 
     def get_initial_message(self, case: Dict[str, Any]) -> str:
         chief_complaint = (case.get("chief_complaint") or "what brought you in today").strip()

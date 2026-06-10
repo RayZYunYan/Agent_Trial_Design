@@ -21,17 +21,10 @@ def toy_df() -> pd.DataFrame:
     ])
     r2_final = rng.uniform(0.3, 0.95, size=n)
     r2_level = np.where(r2_final >= 0.7, "high", "low")
-    a3 = np.array([
-        rng.choice(["A3a", "A3b"]) if lvl == "high" else rng.choice(["A3b", "A3c"])
-        for lvl in r2_level
-    ])
     base = 0.4
     bonus_cat_a1c = 0.15 * ((cats == "Cardiology") & (a1 == "A1c"))
-    bonus_a3 = np.where(
-        (r2_level == "high") & (a3 == "A3a"), 0.2,
-        np.where((r2_level == "low") & (a3 == "A3c"), 0.2, 0.0),
-    )
-    p = np.clip(base + bonus_cat_a1c + bonus_a3, 0.05, 0.95)
+    bonus_a2 = 0.2 * (r1_resp & (a2 == "A2a"))
+    p = np.clip(base + bonus_cat_a1c + bonus_a2, 0.05, 0.95)
     y = rng.binomial(1, p)
     return pd.DataFrame({
         "encounter_id": [f"enc_{i:03d}" for i in range(n)],
@@ -54,9 +47,6 @@ def toy_df() -> pd.DataFrame:
         "R2_avg_conf": r2_final,
         "R2_level": r2_level,
         "stage2_turns": 6,
-        "A3": a3,
-        "stage3_pool": r2_level,
-        "stage3_turns": 3,
         "literacy_id": "literacy_I",
         "Y": y,
         "outcome_red_flag_miss": False,

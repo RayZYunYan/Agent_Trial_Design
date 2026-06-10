@@ -21,7 +21,6 @@ REQUIRED_TOP_LEVEL = [
     "R1",
     "stage2_arm",
     "R2",
-    "stage3_arm",
     "outcome",
     "trajectory",
 ]
@@ -158,7 +157,6 @@ def to_dataframe(encounters: Iterable[Dict[str, Any]]) -> pd.DataFrame:
         traj = enc.get("trajectory", []) or []
         stage1_turns = [t for t in traj if t.get("stage") == 1]
         stage2_turns = [t for t in traj if t.get("stage") == 2]
-        stage3_turns = [t for t in traj if t.get("stage") == 3]
         rows.append({
             "encounter_id": enc["encounter_id"],
             "case_id": enc["case_id"],
@@ -180,9 +178,6 @@ def to_dataframe(encounters: Iterable[Dict[str, Any]]) -> pd.DataFrame:
             "R2_avg_conf": r2.get("avg_confidence"),
             "R2_level": r2.get("confidence_level"),
             "stage2_turns": len(stage2_turns),
-            "A3": enc["stage3_arm"],
-            "stage3_pool": enc.get("stage3_pool"),
-            "stage3_turns": len(stage3_turns),
             "literacy_id": _resolve_literacy_id(enc),
             "Y": int(bool(enc["outcome"].get(OUTCOME_KEY))),
             "outcome_red_flag_miss": bool(enc["outcome"].get("red_flag_miss", False)),

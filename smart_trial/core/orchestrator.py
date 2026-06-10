@@ -33,8 +33,8 @@ def resolve_path(path_str: str) -> Path:
 class TrialOrchestrator:
     """
     Stage 1: turns 1–4 (after opening + patient acknowledgement).
-    Stage 2: turns 5–10.
-    Stage 3: turns 11–20 until conclusion or cap.
+    Stage 2: turns 5–10; the doctor delivers the final [DIAGNOSIS] within this
+    stage (early once confident, forced on the last turn).
     """
 
     def __init__(self, config_path: Optional[str] = None):
@@ -158,14 +158,24 @@ class TrialOrchestrator:
         print(f"--- STAGE 2 ({stage2_arm.get('name', '')}) ---")
 
         stage2_hist_start = len(doctor.conversation_history)
-        for turn in range(5, 11):
-            doctor_msg, confidence = doctor.respond(last_patient)
+        stage2_turns = int(self.config.get("trial", {}).get("stage2_turns", 6))
+        last_stage2_turn = 4 + stage2_turns
+        for turn in range(5, last_stage2_turn + 1):
+            # The model cannot count turns itself, so the orchestrator forces the
+            # conclusion on the last Stage-2 turn (identical across arms).
+            force_conclude = turn == last_stage2_turn
+            doctor_msg, confidence = doctor.respond(last_patient, force_conclude=force_conclude)
             conf_str = f" [conf={confidence:.2f}]" if confidence is not None else ""
             print(f"[Turn {turn}]{conf_str}")
             print(f"Doctor: {doctor_msg}")
+
+            if doctor.has_concluded():
+                logger.log_turn(turn, 2, stage2_arm_id, doctor_msg, "", confidence)
+                print()
+                break
+
             last_patient = patient.respond(doctor_msg)
             print(f"Patient: {last_patient}\n")
-
             logger.log_turn(turn, 2, stage2_arm_id, doctor_msg, last_patient, confidence)
 
         print("--- Computing R2 ---")
@@ -181,36 +191,12 @@ class TrialOrchestrator:
         )
         print(
             f"R2 Confidence: {R2['confidence_level']} (final={R2['final_confidence']:.2f}, "
-            f"source={R2.get('r2_source', '')})"
+            f"source={R2.get('r2_source', '')})\n"
         )
 
-        stage3_assignment = randomizer.assign_stage3_arm(case, R2)
-        stage3_arm_id = stage3_assignment["arm"]
-        stage3_arm = load_arm_config(stage3_arm_id, self._arms_dir)
-
-        print(
-            f"Stage 3 Arm: {stage3_arm_id} ({stage3_arm.get('name', '')}) "
-            f"[Pool: {stage3_assignment['pool_used']}]\n"
-        )
-
-        logger.log_stage_transition(2, R2, stage3_arm_id, stage3_assignment)
-
-        doctor.switch_arm(stage3_arm)
-        print(f"--- STAGE 3 ({stage3_arm.get('name', '')}) ---")
-
-        turn = 11
-        max_turn = int(self.config.get("trial", {}).get("max_turns", 20))
-        while not doctor.has_concluded() and turn <= max_turn:
-            doctor_msg, confidence = doctor.respond(last_patient)
-            print(f"[Turn {turn}]")
-            print(f"Doctor: {doctor_msg}")
-            last_patient = patient.respond(doctor_msg)
-            print(f"Patient: {last_patient}\n")
-
-            logger.log_turn(turn, 3, stage3_arm_id, doctor_msg, last_patient, confidence)
-            turn += 1
-            if doctor.has_concluded():
-                break
+        # R2 is kept as a measured covariate for analysis; it no longer drives
+        # any re-randomization (Stage 3 was removed from the design).
+        logger.log_R2(R2)
 
         print("--- Evaluating Outcome ---")
         final_diag = doctor.get_final_diagnosis()
@@ -230,8 +216,7 @@ class TrialOrchestrator:
 
         print(f"\n{'=' * 60}")
         print(
-            f"Trajectory: {trajectory['stage1_arm']} -> "
-            f"{trajectory['stage2_arm']} -> {trajectory['stage3_arm']}"
+            f"Trajectory: {trajectory['stage1_arm']} -> {trajectory['stage2_arm']}"
         )
         print(f"Saved to: {self._output_dir / (case['case_id'] + '.jsonl')}")
         print(f"{'=' * 60}\n")

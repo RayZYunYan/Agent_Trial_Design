@@ -1,8 +1,6 @@
 trial:
-  max_turns: 20
   stage1_turns: 4
-  stage2_turns: 6
-  stage3_max_turns: 10
+  stage2_turns: 6                  # final diagnosis is delivered within Stage 2
   R1_responder_threshold: 6        # score >= 6 out of 10 = responder
   R2_high_confidence_threshold: 0.7
 

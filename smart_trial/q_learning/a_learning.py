@@ -12,9 +12,9 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import Ridge
 
-from .config import DEFAULT_RIDGE_ALPHA, REFERENCE_ARMS, STAGE1_ARMS, STAGE3_ARMS
-from .features import build_H1, build_H2, build_H3
-from .pools import r1_pool_for, r2_pool_for
+from .config import DEFAULT_RIDGE_ALPHA, REFERENCE_ARMS, STAGE1_ARMS, STAGE2_ARMS
+from .features import build_H1, build_H2
+from .pools import r1_pool_for
 
 
 STAGE1_PROPENSITY = {a: 1.0 / len(STAGE1_ARMS) for a in STAGE1_ARMS}
@@ -27,13 +27,6 @@ def stage2_propensity(responder: bool, arm: str) -> float:
     return (1.0 / len(pool)) if arm in pool else 0.0
 
 
-def stage3_propensity(confidence_level: str, arm: str) -> float:
-    from .config import STAGE3_POOLS
-
-    pool = STAGE3_POOLS.get(confidence_level, STAGE3_POOLS["low"])
-    return (1.0 / len(pool)) if arm in pool else 0.0
-
-
 def _propensity_vector(df: pd.DataFrame, arms: pd.Series, prop_fn: Callable) -> np.ndarray:
     out = np.zeros(len(df))
     for i, (_, row) in enumerate(df.iterrows()):
@@ -43,10 +36,6 @@ def _propensity_vector(df: pd.DataFrame, arms: pd.Series, prop_fn: Callable) -> 
 
 def _stage2_prop(row: pd.Series, arm: str) -> float:
     return stage2_propensity(bool(row["R1_responder"]), arm)
-
-
-def _stage3_prop(row: pd.Series, arm: str) -> float:
-    return stage3_propensity(str(row.get("R2_level", "low")), arm)
 
 
 def _fit_blip_stage(
@@ -124,7 +113,6 @@ class ALearningResult:
     value: float
     blip_stage1: dict
     blip_stage2: dict
-    blip_stage3: dict
 
 
 def fit(
@@ -138,24 +126,15 @@ def fit(
 
     H1 = build_H1(df)
     H2 = build_H2(df)
-    H3 = build_H3(df)
     y = df["Y"].to_numpy(dtype=float)
-
-    ref3 = REFERENCE_ARMS["stage3"]
-    nu3, blip3 = _fit_blip_stage(
-        H3, df["A3"], y, list(STAGE3_ARMS), ref3, _stage3_prop, df, ridge_alpha,
-    )
-    blip3_vals = _blip_values(H3, nu3, blip3)
-    r2_pools = [r2_pool_for(row) for _, row in df.iterrows()]
-    pi3, pseudo_y2 = _argmax_blips(blip3_vals, list(STAGE3_ARMS), r2_pools)
 
     ref2 = REFERENCE_ARMS["stage2"]
     nu2, blip2 = _fit_blip_stage(
-        H2, df["A2"], pseudo_y2, ["A2a", "A2b", "A2c"], ref2, _stage2_prop, df, ridge_alpha,
+        H2, df["A2"], y, list(STAGE2_ARMS), ref2, _stage2_prop, df, ridge_alpha,
     )
     blip2_vals = _blip_values(H2, nu2, blip2)
     r1_pools = [r1_pool_for(row) for _, row in df.iterrows()]
-    pi2, pseudo_y1 = _argmax_blips(blip2_vals, ["A2a", "A2b", "A2c"], r1_pools)
+    pi2, pseudo_y1 = _argmax_blips(blip2_vals, list(STAGE2_ARMS), r1_pools)
 
     ref1 = REFERENCE_ARMS["stage1"]
     prop1 = lambda row, arm: STAGE1_PROPENSITY.get(arm, 0.0)  # noqa: E731
@@ -174,7 +153,6 @@ def fit(
         "R2_level": df["R2_level"].values,
         "pi1": pi1,
         "pi2": pi2,
-        "pi3": pi3,
         "Avalue_at_pi": pseudo_y0,
     })
 
@@ -183,5 +161,4 @@ def fit(
         value=float(np.mean(pseudo_y0)),
         blip_stage1=blip1,
         blip_stage2=blip2,
-        blip_stage3=blip3,
     )

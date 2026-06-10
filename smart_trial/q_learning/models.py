@@ -1,7 +1,7 @@
 """Thin regressor wrappers used by the Q-learning backward induction.
 
 Default model: Ridge on reference-arm contrast design (state + arm×state for
-non-reference arms). Stage 3 can use logistic regression for binary Y.
+non-reference arms). Stage 2 can use logistic regression for binary Y.
 """
 from __future__ import annotations
 
