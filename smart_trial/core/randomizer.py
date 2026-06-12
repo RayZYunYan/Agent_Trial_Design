@@ -11,18 +11,13 @@ def _stable_seed(global_seed: int, case_id: str, tag: str) -> int:
 
 class TrialRandomizer:
     """
-    SMART re-randomization: stage-2 pool depends on R1 responder status;
-    stage-3 pool depends on R2 confidence level only (not correctness).
+    SMART re-randomization: stage-2 pool depends on R1 responder status.
+    (Two-stage design: the trial concludes within Stage 2.)
     """
 
     STAGE2_POOLS = {
         "responder": ["A2a", "A2b", "A2c"],
         "non-responder": ["A2a", "A2b"],
-    }
-
-    STAGE3_POOLS = {
-        "high": ["A3a", "A3b"],
-        "low": ["A3b", "A3c"],
     }
 
     STAGE1_POOL = ["A1a", "A1b", "A1c"]
@@ -50,30 +45,14 @@ class TrialRandomizer:
             "R1_total": R1.get("total", 0),
         }
 
-    def assign_stage3_arm(self, case: Dict[str, Any], R2: Dict[str, Any]) -> Dict[str, Any]:
-        confidence_level = R2.get("confidence_level", "low")
-        pool = self.STAGE3_POOLS.get(confidence_level, ["A3b", "A3c"])
-        case_seed = _stable_seed(self.seed, case["case_id"], "stage3")
-        rng = random.Random(case_seed)
-        arm = rng.choice(pool)
-        return {
-            "arm": arm,
-            "pool_used": confidence_level,
-            "pool": pool,
-            "R2_confidence": R2.get("final_confidence"),
-        }
-
     def get_assignment_summary(
         self,
         stage1_result: str,
         stage2_result: Dict[str, Any],
-        stage3_result: Dict[str, Any],
     ) -> Dict[str, Any]:
         return {
             "stage1_arm": stage1_result,
             "stage2_arm": stage2_result["arm"],
             "stage2_pool": stage2_result["pool_used"],
-            "stage3_arm": stage3_result["arm"],
-            "stage3_pool": stage3_result["pool_used"],
-            "trajectory_id": f"{stage1_result}->{stage2_result['arm']}->{stage3_result['arm']}",
+            "trajectory_id": f"{stage1_result}->{stage2_result['arm']}",
         }

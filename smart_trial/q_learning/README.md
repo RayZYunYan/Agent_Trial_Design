@@ -20,7 +20,7 @@ Outputs land in `smart_trial/q_learning/outputs/`.
 
 ```
 load.py         encounters JSONL (file or dir) → DataFrame
-features.py     H1 / H2 / H3 + counterfactual overrides
+features.py     H1 / H2 + counterfactual overrides
 models.py       reference-arm Ridge / logistic StageRegressor
 q_learning.py   backward induction + counterfactual π̂ + cross-fitted V(π̂)
 a_learning.py   doubly-robust blip estimator (Q/A cross-check)
@@ -30,10 +30,17 @@ diagnostics.py  n vs p, arm cell counts
 run_main_analysis.py   end-to-end
 ```
 
+## Design (two-stage SMART)
+
+- Decision points: Stage 1 (A1a/b/c) and Stage 2 (A2a/b/c, pool gated by R1).
+- The final diagnosis is delivered within Stage 2; there is no Stage 3.
+- R2 (post-Stage-2 confidence) is post-treatment: kept in the DataFrame for
+  descriptive analysis only, never used as a decision-state feature.
+
 ## Key improvements
 
-- Counterfactual H3(H2,a2) for stage-2/1 decisions
-- Logistic Q at stage 3 (binary `diag_correct`)
+- Counterfactual H2(a1) for stage-1 decisions
+- Logistic Q at stage 2 (binary `diag_correct`)
 - Reference-arm contrast coding (fewer collinear dummies)
 - Single-file `encounters.jsonl` loading + category name mapping
 - Cross-fitted V(π̂) to reduce in-sample optimism
@@ -44,4 +51,7 @@ run_main_analysis.py   end-to-end
 - Sample size remains the binding constraint for real data (see `diagnostics.csv`).
 - Literacy features use `literacy_id` derived from the log `persona` block
   (`vocabulary_register` → literacy_F/I/C) or legacy `literacy_persona`.
-- Counterfactual H holds R1/R2 fixed when swapping A1/A2 (documented structural assumption).
+- Counterfactual H holds R1 fixed when swapping A1 (documented structural assumption).
+- Pre-redesign three-stage logs (with `stage3_arm`) still parse, but their
+  outcomes were produced by Stage-3 arms and are not valid under the two-stage
+  design — rerun encounters instead of mixing old and new data.

@@ -19,12 +19,11 @@ def summarise_rules(result: QLearningResult) -> pd.DataFrame:
     """For each subgroup, what did π̂ pick and what was the observed value?"""
     rules = result.rules.copy()
     grouped = rules.groupby(
-        ["case_category", "R1_responder", "R2_level"], dropna=False
+        ["case_category", "R1_responder"], dropna=False
     ).agg(
         n=("encounter_id", "size"),
         modal_pi1=("pi1", _mode_str),
         modal_pi2=("pi2", _mode_str),
-        modal_pi3=("pi3", _mode_str),
         Qhat_at_pi=("Qhat_at_pi", "mean"),
     ).reset_index()
     return grouped
@@ -58,7 +57,7 @@ def _unwrap_linear(model):
 def coefficient_table(result: QLearningResult) -> pd.DataFrame:
     """Concatenate per-stage linear-model coefficients (if linear)."""
     rows = []
-    for stage_name, reg in [("stage1", result.stage1), ("stage2", result.stage2), ("stage3", result.stage3)]:
+    for stage_name, reg in [("stage1", result.stage1), ("stage2", result.stage2)]:
         unwrapped = _unwrap_linear(reg.model)
         if unwrapped is None:
             continue
@@ -74,20 +73,17 @@ def adaptive_vs_static_value(
     adaptive_value: float,
     fitted: Optional["QLearningResult"] = None,
 ) -> pd.DataFrame:
-    """Compare adaptive DTR value vs every feasible static (a1,a2,a3) — plan §5."""
+    """Compare adaptive DTR value vs every feasible static (a1,a2) — plan §5."""
     from itertools import product
 
     from .q_learning import QLearningResult, value_of_fixed_strategy
-    from .config import STAGE1_ARMS
+    from .config import STAGE1_ARMS, STAGE2_ARMS
 
-    a1_arms = STAGE1_ARMS
-    a2_arms = ["A2a", "A2b", "A2c"]
-    a3_arms = ["A3a", "A3b", "A3c"]
     rows = []
-    for a1, a2, a3 in product(a1_arms, a2_arms, a3_arms):
-        v = value_of_fixed_strategy(df, a1, a2, a3, fitted=fitted)
+    for a1, a2 in product(STAGE1_ARMS, STAGE2_ARMS):
+        v = value_of_fixed_strategy(df, a1, a2, fitted=fitted)
         rows.append({
-            "strategy": f"{a1}->{a2}->{a3}",
+            "strategy": f"{a1}->{a2}",
             "value": v,
             "gap_vs_adaptive": adaptive_value - v if pd.notna(v) else float("nan"),
         })

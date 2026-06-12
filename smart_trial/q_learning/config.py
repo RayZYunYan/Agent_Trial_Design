@@ -10,23 +10,16 @@ DEFAULT_RESULTS_DIR = PACKAGE_ROOT / "outputs"
 
 STAGE1_ARMS = ["A1a", "A1b", "A1c"]
 STAGE2_ARMS = ["A2a", "A2b", "A2c"]
-STAGE3_ARMS = ["A3a", "A3b", "A3c"]
 
 STAGE2_POOLS = {
     "responder": ["A2a", "A2b", "A2c"],
     "non-responder": ["A2a", "A2b"],
 }
 
-STAGE3_POOLS = {
-    "high": ["A3a", "A3b"],
-    "low": ["A3b", "A3c"],
-}
-
 # Reference arms for identifiable regression (contrast coding).
 REFERENCE_ARMS = {
     "stage1": "A1a",
     "stage2": "A2a",
-    "stage3": "A3b",
 }
 
 R1_RESPONDER_THRESHOLD = 6

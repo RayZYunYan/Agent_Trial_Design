@@ -1,4 +1,4 @@
-"""Hand-crafted interpretable features H1, H2, H3.
+"""Hand-crafted interpretable features H1, H2.
 
 Plan §1: stay interpretable on the first pass. Embedding features can later be
 appended as an ablation without changing this API.
@@ -68,26 +68,11 @@ def build_H2(
     return pd.concat([h1, extras], axis=1)
 
 
-def build_H3(
-    df: pd.DataFrame,
-    *,
-    a1_override: Optional[str] = None,
-    a2_override: Optional[str] = None,
-) -> pd.DataFrame:
-    """State entering Stage 3: H2 + R2 + Stage-2 arm + Stage-2 turn count."""
-    h2 = build_H2(df, a1_override=a1_override)
-    a2 = df["A2"] if a2_override is None else pd.Series(a2_override, index=df.index)
-    extras = pd.DataFrame(index=df.index)
-    extras["R2_final_conf"] = df["R2_final_conf"].fillna(0.0).astype(float)
-    extras["R2_avg_conf"] = df["R2_avg_conf"].fillna(0.0).astype(float)
-    extras["R2_high"] = (df["R2_level"] == "high").astype(int)
-    extras["stage2_turns"] = df["stage2_turns"].fillna(0).astype(float)
-    extras["A2_a"] = (a2 == "A2a").astype(int)
-    extras["A2_b"] = (a2 == "A2b").astype(int)
-    extras["A2_c"] = (a2 == "A2c").astype(int)
-    return pd.concat([h2, extras], axis=1)
-
-
 def build_all(df: pd.DataFrame) -> dict:
-    """Return {'H1': ..., 'H2': ..., 'H3': ...} aligned to df."""
-    return {"H1": build_H1(df), "H2": build_H2(df), "H3": build_H3(df)}
+    """Return {'H1': ..., 'H2': ...} aligned to df.
+
+    R2 is measured after A2 is chosen (post-treatment), so it is not part of
+    any decision state in the two-stage design; it stays in the raw DataFrame
+    for descriptive analysis only.
+    """
+    return {"H1": build_H1(df), "H2": build_H2(df)}

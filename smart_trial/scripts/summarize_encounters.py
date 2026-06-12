@@ -37,10 +37,8 @@ def summarize(output_dir: str, responder_threshold: int = 6) -> None:
 
     s1_arms = Counter(e.get("stage1_arm", "?") for e in encounters)
     s2_arms = Counter(e.get("stage2_arm", "?") for e in encounters)
-    s3_arms = Counter(e.get("stage3_arm", "?") for e in encounters)
     print(f"\nStage 1 arm distribution: {dict(s1_arms)}")
     print(f"Stage 2 arm distribution: {dict(s2_arms)}")
-    print(f"Stage 3 arm distribution: {dict(s3_arms)}")
 
     categories = Counter(e.get("case_category", "?") for e in encounters)
     print(f"\nCase categories: {dict(categories)}")
@@ -72,7 +70,7 @@ def summarize(output_dir: str, responder_threshold: int = 6) -> None:
         print(f"  Red flag miss: {n_rf_miss}/{len(outcomes)}")
 
     trajectories = Counter(
-        f"{e.get('stage1_arm', '?')}->{e.get('stage2_arm', '?')}->{e.get('stage3_arm', '?')}"
+        f"{e.get('stage1_arm', '?')}->{e.get('stage2_arm', '?')}"
         for e in encounters
     )
     print("\nTop trajectories:")
