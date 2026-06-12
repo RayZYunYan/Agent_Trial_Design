@@ -64,3 +64,4 @@ logs/
 .DS_Store
 Thumbs.db
 desktop.ini
+smart_trial/q_learning/WORKFLOW_REPORT.md
