@@ -47,7 +47,11 @@ randomization:
 #   per_case    -> read case["persona_id"] if set, else demographic fallback
 persona:
   mode: "random"
-  fixed_id: "default"
+
+rag:
+  enabled: true
+  k: 3                                        # number of passages to retrieve
+  index_cache: "smart_trial/data/bm25_index.pkl"
 
 rag:
   enabled: true
