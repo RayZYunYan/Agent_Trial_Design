@@ -16,6 +16,7 @@ from smart_trial.core.persona import (
 from smart_trial.core.randomizer import TrialRandomizer
 from smart_trial.trajectory_log.trajectory_logger import TrajectoryLogger
 from smart_trial.models.model_client import ModelClient
+from smart_trial.rag.retriever import BM25Retriever, BaseRetriever
 
 
 
@@ -62,6 +63,37 @@ class TrialOrchestrator:
 
         self._arms_dir = SMART_TRIAL_ROOT / "config" / "arms"
         self._personas_dir = SMART_TRIAL_ROOT / "config" / "personas"
+
+        rag_cfg = self.config.get("rag", {})
+        self._rag_enabled = bool(rag_cfg.get("enabled", False))
+        self._rag_k = int(rag_cfg.get("k", 3))
+        self._retriever: Optional[BaseRetriever] = None
+        if self._rag_enabled:
+            cache_path = str(resolve_path(rag_cfg.get("index_cache", "smart_trial/data/bm25_index.pkl")))
+            self._retriever = BM25Retriever.load(cache_path=cache_path)
+
+    # ------------------------------------------------------------------
+    # RAG helpers
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _parse_retrieval_query(text: str) -> Optional[str]:
+        """Extract query string from [RETRIEVAL QUERY: <q>] in doctor message."""
+        import re
+        match = re.search(r"\[RETRIEVAL QUERY:\s*(.+?)\]", text, re.IGNORECASE)
+        return match.group(1).strip() if match else None
+
+    @staticmethod
+    def _strip_internal_markers(text: str) -> str:
+        """Remove [RETRIEVAL QUERY: ...] lines before sending doctor message to patient."""
+        import re
+        cleaned = re.sub(r"\[RETRIEVAL QUERY:[^\]]*\]\s*", "", text, flags=re.IGNORECASE)
+        return cleaned.strip()
+
+    @staticmethod
+    def _format_retrieval_result(passages: List[str]) -> str:
+        """Format top-k passages into a block injected into doctor system prompt."""
+        body = "\n\n".join(passages)
+        return f"[RETRIEVAL RESULT]\n{body}\n[/RETRIEVAL RESULT]"
 
     def _resolve_persona(
         self, case: Dict[str, Any], rng: random.Random
@@ -157,13 +189,30 @@ class TrialOrchestrator:
         doctor.switch_arm(stage2_arm)
         print(f"--- STAGE 2 ({stage2_arm.get('name', '')}) ---")
 
+        arm_retrieval_enabled = (
+            self._rag_enabled
+            and bool((stage2_arm.get("tool_access") or {}).get("retrieval", False))
+            and self._retriever is not None
+        )
+
         stage2_hist_start = len(doctor.conversation_history)
+        pending_retrieval_context: Optional[str] = None
         for turn in range(5, 11):
-            doctor_msg, confidence = doctor.respond(last_patient)
+            doctor_msg, confidence = doctor.respond(last_patient, retrieval_context=pending_retrieval_context)
+            pending_retrieval_context = None
+
+            if arm_retrieval_enabled:
+                query = self._parse_retrieval_query(doctor_msg)
+                if query:
+                    passages = self._retriever.retrieve(query, k=self._rag_k)
+                    pending_retrieval_context = self._format_retrieval_result(passages)
+                    print(f"[RAG] Query: {query!r} → {len(passages)} passages retrieved")
+
             conf_str = f" [conf={confidence:.2f}]" if confidence is not None else ""
             print(f"[Turn {turn}]{conf_str}")
             print(f"Doctor: {doctor_msg}")
-            last_patient = patient.respond(doctor_msg)
+            patient_facing_msg = self._strip_internal_markers(doctor_msg)
+            last_patient = patient.respond(patient_facing_msg)
             print(f"Patient: {last_patient}\n")
 
             logger.log_turn(turn, 2, stage2_arm_id, doctor_msg, last_patient, confidence)

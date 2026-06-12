@@ -93,12 +93,12 @@ Rules:
         self.current_arm = new_arm_config
         self.current_stage = int(new_arm_config.get("stage", self.current_stage))
 
-    def respond(self, patient_message: str) -> Tuple[str, Optional[float]]:
+    def respond(self, patient_message: str, retrieval_context: Optional[str] = None) -> Tuple[str, Optional[float]]:
         self.turn_count += 1
         if patient_message:
             self.conversation_history.append({"role": "user", "content": patient_message})
 
-        system_prompt = self._build_system_prompt()
+        system_prompt = self._build_system_prompt(retrieval_context)
         response = self.model.chat(
             messages=self._conversation_for_api(),
             system_prompt=system_prompt,
@@ -118,9 +118,12 @@ Rules:
     def _conversation_for_api(self) -> List[Dict[str, str]]:
         return [{"role": m["role"], "content": m["content"]} for m in self.conversation_history]
 
-    def _build_system_prompt(self) -> str:
+    def _build_system_prompt(self, retrieval_context: Optional[str] = None) -> str:
         arm_instruction = self.current_arm.get("system_prompt_injection", "") or ""
-        return f"{self.BASE_SYSTEM_PROMPT}\n\n{arm_instruction}"
+        prompt = f"{self.BASE_SYSTEM_PROMPT}\n\n{arm_instruction}"
+        if retrieval_context:
+            prompt += f"\n\n{retrieval_context}"
+        return prompt
 
     def _extract_confidence(self, response: str) -> Tuple[Optional[float], str]:
         pattern = r"\[CONFIDENCE:\s*(0\.\d+|1\.0)\]"
