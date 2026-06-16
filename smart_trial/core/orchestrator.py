@@ -1,3 +1,4 @@
+import hashlib
 import os
 import random
 from pathlib import Path
@@ -19,7 +20,6 @@ from smart_trial.models.model_client import ModelClient
 from smart_trial.rag.retriever import BM25Retriever, BaseRetriever
 
 
-
 SMART_TRIAL_ROOT = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = SMART_TRIAL_ROOT.parent
 
@@ -31,11 +31,17 @@ def resolve_path(path_str: str) -> Path:
     return (PROJECT_ROOT / p).resolve()
 
 
+def _stable_persona_seed(global_seed: int, case_id: str) -> int:
+    digest = hashlib.sha256(f"{global_seed}:{case_id}:persona".encode()).hexdigest()
+    return int(digest[:16], 16)
+
+
 class TrialOrchestrator:
     """
-    Stage 1: turns 1–4 (after opening + patient acknowledgement).
-    Stage 2: turns 5–10; the doctor delivers the final [DIAGNOSIS] within this
-    stage (early once confident, forced on the last turn).
+    Run modes (config ``run.mode``):
+      - smart_random: default SMART trial with random arm assignment
+      - smart_grid: SMART with forced (A1, A2); ignores Stage-2 pool restrictions
+      - baseline: single-phase visit, no strategy arms, max_turns dialogue
     """
 
     def __init__(self, config_path: Optional[str] = None):
@@ -60,6 +66,7 @@ class TrialOrchestrator:
 
         log_cfg = self.config.get("logging", {})
         self._output_dir = resolve_path(log_cfg.get("output_dir", "smart_trial/outputs/encounters"))
+        self._aggregate_filename = log_cfg.get("aggregate_filename")
 
         self._arms_dir = SMART_TRIAL_ROOT / "config" / "arms"
         self._personas_dir = SMART_TRIAL_ROOT / "config" / "personas"
@@ -72,11 +79,18 @@ class TrialOrchestrator:
         )
         self._retriever: Optional[BaseRetriever] = None
 
+    def _get_run_mode(self, override: Optional[str] = None) -> str:
+        if override:
+            return override
+        return str((self.config.get("run") or {}).get("mode", "smart_random"))
+
+    def _make_logger(self) -> TrajectoryLogger:
+        return TrajectoryLogger(str(self._output_dir), aggregate_filename=self._aggregate_filename)
+
     # ------------------------------------------------------------------
     # RAG helpers
     # ------------------------------------------------------------------
     def _get_retriever(self) -> Optional[BaseRetriever]:
-        """Load BM25 index on first Stage-2 retrieval use (not at orchestrator init)."""
         if not self._rag_enabled:
             return None
         if self._retriever is not None:
@@ -91,21 +105,18 @@ class TrialOrchestrator:
 
     @staticmethod
     def _parse_retrieval_query(text: str) -> Optional[str]:
-        """Extract query string from [RETRIEVAL QUERY: <q>] in doctor message."""
         import re
         match = re.search(r"\[RETRIEVAL QUERY:\s*(.+?)\]", text, re.IGNORECASE)
         return match.group(1).strip() if match else None
 
     @staticmethod
     def _strip_internal_markers(text: str) -> str:
-        """Remove [RETRIEVAL QUERY: ...] lines before sending doctor message to patient."""
         import re
         cleaned = re.sub(r"\[RETRIEVAL QUERY:[^\]]*\]\s*", "", text, flags=re.IGNORECASE)
         return cleaned.strip()
 
     @staticmethod
     def _format_retrieval_result(passages: List[str]) -> str:
-        """Format top-k passages into a block injected into doctor system prompt."""
         body = "\n\n".join(passages)
         return f"[RETRIEVAL RESULT]\n{body}\n[/RETRIEVAL RESULT]"
 
@@ -126,11 +137,30 @@ class TrialOrchestrator:
         if mode == "per_case":
             pid = case.get("persona_id") or select_default_persona_id(case)
             return load_persona_from_id(str(pid), self._personas_dir)
+        if mode == "per_case_seed":
+            case_rng = random.Random(_stable_persona_seed(rng.randint(0, 2**31), case["case_id"]))
+            return PatientPersona.sample(case_rng)
         raise ValueError(f"Unknown persona.mode: {mode!r}")
+
+    def _persona_for_case(
+        self,
+        case: Dict[str, Any],
+        seed: int,
+        persona: Optional[PatientPersona],
+    ) -> Optional[PatientPersona]:
+        eval_cfg = self.config.get("eval") or {}
+        if persona is not None:
+            return persona
+        if eval_cfg.get("fix_persona_per_case", False):
+            case_rng = random.Random(_stable_persona_seed(seed, case["case_id"]))
+            return PatientPersona.sample(case_rng)
+        return self._resolve_persona(case, random.Random(seed))
 
     def _make_client(self, role: str) -> ModelClient:
         cfg = dict(self.config["models"][role])
-        if os.environ.get("SMART_TRIAL_USE_MOCK", "").lower() in ("1", "true", "yes"):
+        use_mock_all = os.environ.get("SMART_TRIAL_USE_MOCK", "").lower() in ("1", "true", "yes")
+        use_mock_judge = os.environ.get("SMART_TRIAL_MOCK_JUDGE", "").lower() in ("1", "true", "yes")
+        if use_mock_all or (role == "judge" and use_mock_judge):
             cfg["provider"] = "mock"
             cfg["model_name"] = "mock"
         return ModelClient(
@@ -139,67 +169,192 @@ class TrialOrchestrator:
             temperature=float(cfg.get("temperature", 0.5)),
         )
 
+    @staticmethod
+    def _neutral_r2() -> Dict[str, Any]:
+        return {
+            "final_confidence": 0.5,
+            "avg_confidence": 0.5,
+            "confidence_level": "low",
+            "confidence_scores": [],
+            "R2_category": "low-confidence",
+            "r2_source": "baseline",
+        }
+
     def run_encounter(
         self,
         case: Dict[str, Any],
         seed: Optional[int] = None,
         persona: Optional[PatientPersona] = None,
+        *,
+        run_mode: Optional[str] = None,
+        forced_a1: Optional[str] = None,
+        forced_a2: Optional[str] = None,
+        path_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         if seed is None:
             seed = int(self.config.get("randomization", {}).get("seed", 42))
 
-        rand_cfg = self.config.get("randomization", {})
-        randomizer = TrialRandomizer(seed, stratify_by=rand_cfg.get("stratify_by", "case_category"))
-        logger = TrajectoryLogger(str(self._output_dir))
+        mode = self._get_run_mode(run_mode)
+        if mode == "baseline":
+            return self._run_baseline(case, seed=seed, persona=persona)
+        return self._run_smart(
+            case,
+            seed=seed,
+            persona=persona,
+            run_mode=mode,
+            forced_a1=forced_a1,
+            forced_a2=forced_a2,
+            path_id=path_id,
+        )
 
-        rng = random.Random(seed)
-        if persona is None:
-            persona = self._resolve_persona(case, rng)
-
-        stage1_arm_id = randomizer.assign_stage1_arm(case)
-        stage1_arm = load_arm_config(stage1_arm_id, self._arms_dir)
+    def _run_baseline(
+        self,
+        case: Dict[str, Any],
+        *,
+        seed: int,
+        persona: Optional[PatientPersona],
+    ) -> Dict[str, Any]:
+        run_cfg = self.config.get("run") or {}
+        max_turns = int(run_cfg.get("baseline_max_turns", 11))
+        logger = self._make_logger()
+        persona = self._persona_for_case(case, seed, persona)
 
         print(f"\n{'=' * 60}")
-        print(f"Case: {case['case_id']} | {case.get('case_category', '')}")
+        print(f"Case: {case['case_id']} | {case.get('case_category', '')} | mode=baseline")
+        print(f"Chief Complaint: {case.get('chief_complaint', '')}")
+        print(f"Persona: {persona}")
+        print(f"{'=' * 60}\n")
+
+        doctor = DoctorAgent(self.doctor_model, dict(DoctorAgent.BASELINE_ARM_CONFIG))
+        patient = PatientAgent(self.patient_model, case, persona=persona)
+
+        logger.start_encounter(
+            case,
+            seed,
+            stage1_arm=None,
+            persona=persona.to_dict() if persona else None,
+            run_mode="baseline",
+        )
+
+        initial_msg = doctor.get_initial_message(case)
+        print(f"[Opening]\nDoctor: {initial_msg}\n")
+        last_patient = patient.respond(initial_msg)
+
+        print("--- BASELINE (no strategy arms) ---")
+        for turn in range(1, max_turns + 1):
+            force_conclude = turn == max_turns
+            doctor_msg, _confidence = doctor.respond(last_patient, force_conclude=force_conclude)
+            print(f"[Turn {turn}]")
+            print(f"Doctor: {doctor_msg}")
+
+            if doctor.has_concluded():
+                logger.log_turn(turn, 0, "baseline", doctor_msg, "", None)
+                print()
+                break
+
+            last_patient = patient.respond(doctor_msg)
+            print(f"Patient: {last_patient}\n")
+            logger.log_turn(turn, 0, "baseline", doctor_msg, last_patient, None)
+
+        print("--- Evaluating Outcome ---")
+        final_diag = doctor.get_final_diagnosis()
+        r2 = self._neutral_r2()
+        outcome = self.judge.evaluate_outcome(
+            final_diagnosis=final_diag or "",
+            case=case,
+            conversation_history=doctor.conversation_history,
+            R2=r2,
+        )
+
+        trajectory = logger.finalize(outcome)
+        self._print_outcome(trajectory, label="baseline")
+        return trajectory
+
+    def _run_smart(
+        self,
+        case: Dict[str, Any],
+        *,
+        seed: int,
+        persona: Optional[PatientPersona],
+        run_mode: str,
+        forced_a1: Optional[str],
+        forced_a2: Optional[str],
+        path_id: Optional[str],
+    ) -> Dict[str, Any]:
+        rand_cfg = self.config.get("randomization", {})
+        randomizer = TrialRandomizer(seed, stratify_by=rand_cfg.get("stratify_by", "case_category"))
+        logger = self._make_logger()
+        persona = self._persona_for_case(case, seed, persona)
+
+        stage1_arm_id = forced_a1 or randomizer.assign_stage1_arm(case)
+        stage1_arm = load_arm_config(stage1_arm_id, self._arms_dir)
+        resolved_path_id = path_id or (
+            f"{forced_a1}_{forced_a2}" if forced_a1 and forced_a2 else None
+        )
+
+        print(f"\n{'=' * 60}")
+        print(f"Case: {case['case_id']} | {case.get('case_category', '')} | mode={run_mode}")
         print(f"Chief Complaint: {case.get('chief_complaint', '')}")
         print(f"Stage 1 Arm: {stage1_arm_id} ({stage1_arm.get('name', '')})")
+        if resolved_path_id:
+            print(f"Path: {resolved_path_id}")
         print(f"Persona: {persona}")
         print(f"{'=' * 60}\n")
 
         doctor = DoctorAgent(self.doctor_model, stage1_arm)
         patient = PatientAgent(self.patient_model, case, persona=persona)
 
-        logger.start_encounter(case, seed, stage1_arm_id, persona=persona.to_dict() if persona else None)
+        logger.start_encounter(
+            case,
+            seed,
+            stage1_arm_id,
+            persona=persona.to_dict() if persona else None,
+            run_mode=run_mode,
+            path_id=resolved_path_id,
+            forced_a1=forced_a1,
+            forced_a2=forced_a2,
+        )
 
         initial_msg = doctor.get_initial_message(case)
         print(f"[Opening]\nDoctor: {initial_msg}\n")
         last_patient = patient.respond(initial_msg)
 
+        stage1_turns = int(self.config.get("trial", {}).get("stage1_turns", 4))
         print(f"--- STAGE 1 ({stage1_arm.get('name', '')}) ---")
-        for turn in range(1, 5):
+        for turn in range(1, stage1_turns + 1):
             doctor_msg, confidence = doctor.respond(last_patient)
             print(f"[Turn {turn}]")
             print(f"Doctor: {doctor_msg}")
             last_patient = patient.respond(doctor_msg)
             print(f"Patient: {last_patient}\n")
-
             logger.log_turn(turn, 1, stage1_arm_id, doctor_msg, last_patient, confidence)
 
         print("--- Computing R1 ---")
         R1 = self.judge.compute_R1(doctor.conversation_history, case)
         print(f"R1 Score: {R1.get('total')}/10 | Responder: {R1.get('responder')}")
 
-        stage2_assignment = randomizer.assign_stage2_arm(case, R1)
-        stage2_arm_id = stage2_assignment["arm"]
-        stage2_arm = load_arm_config(stage2_arm_id, self._arms_dir)
+        if forced_a2:
+            pool_key = "responder" if R1.get("responder") else "non-responder"
+            stage2_arm_id = forced_a2
+            stage2_assignment = {
+                "arm": forced_a2,
+                "pool_used": pool_key,
+                "pool": TrialRandomizer.STAGE2_POOLS[pool_key],
+                "R1_total": R1.get("total", 0),
+                "forced": True,
+            }
+        else:
+            stage2_assignment = randomizer.assign_stage2_arm(case, R1)
+            stage2_arm_id = stage2_assignment["arm"]
 
+        stage2_arm = load_arm_config(stage2_arm_id, self._arms_dir)
         print(
             f"Stage 2 Arm: {stage2_arm_id} ({stage2_arm.get('name', '')}) "
-            f"[Pool: {stage2_assignment['pool_used']}]\n"
+            f"[Pool: {stage2_assignment['pool_used']}"
+            f"{', forced' if stage2_assignment.get('forced') else ''}]\n"
         )
 
         logger.log_stage_transition(1, R1, stage2_arm_id, stage2_assignment)
-
         doctor.switch_arm(stage2_arm)
         print(f"--- STAGE 2 ({stage2_arm.get('name', '')}) ---")
 
@@ -210,11 +365,9 @@ class TrialOrchestrator:
 
         stage2_hist_start = len(doctor.conversation_history)
         stage2_turns = int(self.config.get("trial", {}).get("stage2_turns", 6))
-        last_stage2_turn = 4 + stage2_turns
+        last_stage2_turn = stage1_turns + stage2_turns
         pending_retrieval_context: Optional[str] = None
-        for turn in range(5, last_stage2_turn + 1):
-            # The model cannot count turns itself, so the orchestrator forces the
-            # conclusion on the last Stage-2 turn (identical across arms).
+        for turn in range(stage1_turns + 1, last_stage2_turn + 1):
             force_conclude = turn == last_stage2_turn
             doctor_msg, confidence = doctor.respond(
                 last_patient,
@@ -261,9 +414,6 @@ class TrialOrchestrator:
             f"R2 Confidence: {R2['confidence_level']} (final={R2['final_confidence']:.2f}, "
             f"source={R2.get('r2_source', '')})\n"
         )
-
-        # R2 is kept as a measured covariate for analysis; it no longer drives
-        # any re-randomization (Stage 3 was removed from the design).
         logger.log_R2(R2)
 
         print("--- Evaluating Outcome ---")
@@ -276,17 +426,20 @@ class TrialOrchestrator:
         )
 
         trajectory = logger.finalize(outcome)
+        self._print_outcome(
+            trajectory,
+            label=f"{trajectory['stage1_arm']} -> {trajectory['stage2_arm']}",
+        )
+        return trajectory
 
+    def _print_outcome(self, trajectory: Dict[str, Any], label: str) -> None:
+        outcome = trajectory.get("outcome") or {}
         print(f"Diagnosis Correct: {outcome.get('diag_correct')}")
         print(f"Red Flag Miss: {outcome.get('red_flag_miss')}")
         print(f"Dangerous Advice: {outcome.get('dangerous_advice')}")
         print(f"Turns Used: {trajectory.get('total_turns', 0)}")
-
+        agg = self._aggregate_filename or f"{trajectory['case_id']}.jsonl"
         print(f"\n{'=' * 60}")
-        print(
-            f"Trajectory: {trajectory['stage1_arm']} -> {trajectory['stage2_arm']}"
-        )
-        print(f"Saved to: {self._output_dir / (case['case_id'] + '.jsonl')}")
+        print(f"Trajectory: {label}")
+        print(f"Saved to: {self._output_dir / agg}")
         print(f"{'=' * 60}\n")
-
-        return trajectory

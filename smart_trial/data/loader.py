@@ -332,3 +332,13 @@ def get_case_by_id(cases: List[Dict[str, Any]], case_id: str) -> Optional[Dict[s
         if c.get("case_id") == case_id:
             return c
     return None
+
+
+def filter_cases_by_ids(cases: List[Dict[str, Any]], case_ids: List[str]) -> List[Dict[str, Any]]:
+    """Return cases in the same order as case_ids; skip missing ids."""
+    by_id = {c["case_id"]: c for c in cases}
+    out: List[Dict[str, Any]] = []
+    for cid in case_ids:
+        if cid in by_id:
+            out.append(by_id[cid])
+    return out
