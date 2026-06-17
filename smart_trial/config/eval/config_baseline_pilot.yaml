@@ -1,6 +1,6 @@
-# Pilot: 3 baseline runs (Groq dialogue + mock judge). Low turn count to save quota.
-#   set SMART_TRIAL_MOCK_JUDGE=1
-#   python -m smart_trial.run_eval --config smart_trial/config/eval/config_baseline_pilot.yaml --no-resume
+# Pilot: 5 baseline runs (API dialogue + real judge). Low turn count to save quota.
+#   python smart_trial/scripts/run_pilot_pipeline.py
+#   or: python -m smart_trial.run_eval --config smart_trial/config/eval/config_baseline_pilot.yaml --no-resume
 
 run:
   mode: baseline
@@ -12,6 +12,8 @@ eval:
     - medqa_0000
     - medqa_0001
     - medqa_0002
+    - medqa_0003
+    - medqa_0004
 
 trial:
   stage1_turns: 2
@@ -24,6 +26,7 @@ data:
   local:
     path: "data/all_dev_good.jsonl"
     max_cases: null
+  red_flag_cache: "smart_trial/data/red_flag_cache.json"
 
 models:
   patient_simulator:

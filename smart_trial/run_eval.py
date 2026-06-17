@@ -20,6 +20,7 @@ from smart_trial.data.loader import (
     load_red_flag_cache,
 )
 from smart_trial.eval.case_lists import BENCHMARK_CASE_IDS, GRID_PATHS, path_id_for
+from smart_trial.eval.output_utils import clear_eval_output_dir
 from smart_trial.eval.resume import load_completed_baseline_keys, load_completed_grid_keys
 
 
@@ -130,10 +131,8 @@ def main(argv: list[str] | None = None) -> int:
 
     orch._output_dir.mkdir(parents=True, exist_ok=True)
     if not args.resume:
-        agg = _aggregate_path(orch)
-        if agg.is_file():
-            agg.unlink()
-            print(f"Cleared aggregate for fresh run: {agg}")
+        n_removed = clear_eval_output_dir(orch._output_dir)
+        print(f"Cleared {n_removed} *.jsonl file(s) in {orch._output_dir}")
 
     print(f"Mode={mode} | cases={len(run_cases)} | seed={seed} | resume={args.resume}")
     print(f"Output dir: {orch._output_dir}")

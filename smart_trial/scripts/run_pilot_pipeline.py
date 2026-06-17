@@ -1,4 +1,4 @@
-"""End-to-end pilot: 3 baseline + 3 grid (Groq + mock judge) + summary + format checks."""
+"""End-to-end pilot: 5 baseline + 5 grid (API + real judge) + summary + format checks."""
 from __future__ import annotations
 
 import json
@@ -15,10 +15,12 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from dotenv import load_dotenv
 
+from smart_trial.eval.case_lists import PILOT_CASE_IDS
 from smart_trial.eval.summary_metrics import build_summary
 from smart_trial.trajectory_log.trajectory_logger import TrajectoryLogger
 
 PILOT_ROOT = PROJECT_ROOT / "smart_trial" / "outputs" / "eval" / "pilot"
+SMOKE_ROOT = PROJECT_ROOT / "smart_trial" / "outputs" / "eval" / "smoke"
 BASELINE_AGG = PILOT_ROOT / "baseline" / "baseline_encounters.jsonl"
 GRID_AGG = PILOT_ROOT / "grid" / "grid_encounters.jsonl"
 SUMMARY_CSV = PILOT_ROOT / "summary_metrics.csv"
@@ -30,6 +32,8 @@ REQUIRED_ENCOUNTER_KEYS = {
 
 BASELINE_MODE = "baseline"
 GRID_MODE = "smart_grid"
+EXPECTED_BASELINE = len(PILOT_CASE_IDS)
+EXPECTED_GRID = len(PILOT_CASE_IDS)
 
 
 def _run(cmd: List[str], env: Dict[str, str]) -> None:
@@ -95,18 +99,17 @@ def validate_all() -> int:
     bl = [r for r in baseline_rows if r.get("run_mode") == "baseline"]
     gr = [r for r in grid_rows if r.get("run_mode") == "smart_grid"]
 
-    print(f"\n=== Counts: baseline={len(bl)} grid={len(gr)} ===")
-    if len(bl) != 3:
-        errors.append(f"expected 3 baseline rows, got {len(bl)}")
-    if len(gr) != 3:
-        errors.append(f"expected 3 grid rows, got {len(gr)}")
+    print(f"\n=== Counts: baseline={len(bl)} grid={len(gr)} (expected {EXPECTED_BASELINE}/{EXPECTED_GRID}) ===")
+    if len(bl) != EXPECTED_BASELINE:
+        errors.append(f"expected {EXPECTED_BASELINE} baseline rows, got {len(bl)}")
+    if len(gr) != EXPECTED_GRID:
+        errors.append(f"expected {EXPECTED_GRID} grid rows, got {len(gr)}")
 
     for enc in bl:
         errors.extend(_validate_encounter(enc, "baseline"))
     for enc in gr:
         errors.extend(_validate_encounter(enc, "smart_grid"))
 
-    # Same persona per case across grid paths (trivial with 1 path; check fields exist)
     if gr:
         by_case = {}
         for enc in gr:
@@ -124,10 +127,9 @@ def validate_all() -> int:
         for metric in ("baseline", "static_path", "qlearning_adaptive"):
             if metric not in summary["metric"].values:
                 errors.append(f"summary missing metric: {metric}")
-        # Pilot with 1 grid path may not fit Q-learning (single Y class) — allow error column
         adapt = summary[summary["metric"] == "qlearning_adaptive"]
         if not adapt.empty and pd.notna(adapt.iloc[0].get("error")):
-            print(f"Note: adaptive skipped — {adapt.iloc[0]['error']}")
+            print(f"Note: adaptive issue — {adapt.iloc[0]['error']}")
 
     _print_encounter_sample(BASELINE_AGG, "baseline")
     _print_encounter_sample(GRID_AGG, "smart_grid")
@@ -142,24 +144,32 @@ def validate_all() -> int:
     return 0
 
 
+def _wipe_test_outputs() -> None:
+    for path in (PILOT_ROOT, SMOKE_ROOT, PROJECT_ROOT / "smart_trial" / "outputs" / "eval" / "_test_summary_tmp"):
+        if path.exists():
+            shutil.rmtree(path, ignore_errors=True)
+            print(f"  removed {path.relative_to(PROJECT_ROOT)}")
+
+
 def main() -> int:
     load_dotenv(PROJECT_ROOT / ".env")
 
-    use_groq = bool(os.environ.get("GROQ_API_KEY"))
-    if not use_groq:
-        print("GROQ_API_KEY not set — using full mock (SMART_TRIAL_USE_MOCK=1)")
+    use_api = bool(os.environ.get("GROQ_API_KEY") or os.environ.get("ANTHROPIC_API_KEY"))
+    if not use_api:
+        print("No GROQ_API_KEY or ANTHROPIC_API_KEY — using full mock (SMART_TRIAL_USE_MOCK=1)")
     else:
-        print("Using Groq for patient/doctor; judge mocked (SMART_TRIAL_MOCK_JUDGE=1)")
+        provider = "Anthropic" if os.environ.get("ANTHROPIC_API_KEY") else "Groq"
+        print(f"Using {provider} API for patient/doctor/judge (no mock judge)")
+
+    print("\n=== Clearing prior test outputs (pilot/, smoke/) ===")
+    _wipe_test_outputs()
 
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
-    if use_groq:
-        env["SMART_TRIAL_MOCK_JUDGE"] = "1"
-    else:
+    env.pop("SMART_TRIAL_MOCK_JUDGE", None)
+    env.pop("SMART_TRIAL_USE_MOCK", None)
+    if not use_api:
         env["SMART_TRIAL_USE_MOCK"] = "1"
-
-    # Fresh pilot output
-    shutil.rmtree(PILOT_ROOT, ignore_errors=True)
 
     py = sys.executable
     _run([
@@ -173,7 +183,12 @@ def main() -> int:
         "--no-resume",
     ], env)
 
-    summary = build_summary(BASELINE_AGG, GRID_AGG, case_ids=["medqa_0000", "medqa_0001", "medqa_0002"])
+    summary = build_summary(
+        BASELINE_AGG,
+        GRID_AGG,
+        case_ids=list(PILOT_CASE_IDS),
+        write_category_jsonl=True,
+    )
     SUMMARY_CSV.parent.mkdir(parents=True, exist_ok=True)
     summary.to_csv(SUMMARY_CSV, index=False)
 

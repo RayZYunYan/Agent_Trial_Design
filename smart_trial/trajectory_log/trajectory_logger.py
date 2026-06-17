@@ -5,7 +5,11 @@ from typing import Any, Dict, List, Optional
 
 
 class TrajectoryLogger:
-    """Append one JSON object per encounter to per-case and optional aggregate JSONL."""
+    """Append one JSON object per encounter to aggregate and/or per-case JSONL.
+
+    When ``aggregate_filename`` is set, rows are written only to that file (eval runs).
+    Otherwise each encounter appends to ``{case_id}.jsonl`` (legacy SMART trials).
+    """
 
     def __init__(self, output_dir: str, aggregate_filename: Optional[str] = None):
         self.output_dir = output_dir
@@ -93,13 +97,13 @@ class TrajectoryLogger:
         self._current["timestamp_end"] = datetime.now().isoformat()
 
         line = json.dumps(self._current, ensure_ascii=False) + "\n"
-        output_file = os.path.join(self.output_dir, f"{self._current['case_id']}.jsonl")
-        with open(output_file, "a", encoding="utf-8") as f:
-            f.write(line)
-
         if self.aggregate_filename:
             aggregate_path = os.path.join(self.output_dir, self.aggregate_filename)
             with open(aggregate_path, "a", encoding="utf-8") as f:
+                f.write(line)
+        else:
+            output_file = os.path.join(self.output_dir, f"{self._current['case_id']}.jsonl")
+            with open(output_file, "a", encoding="utf-8") as f:
                 f.write(line)
 
         return self._current
