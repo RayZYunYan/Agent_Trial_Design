@@ -69,7 +69,7 @@ Point `data.red_flag_cache` in `trial_config.yaml` to the JSON file, or pass `--
 
 ## CARC benchmark (Phase 1, Claude)
 
-50-case baseline + 50×9 grid eval uses **Anthropic `claude-sonnet-4-6`**. Full steps:
+50-case baseline + 50×9 grid eval uses **Anthropic** (patient/judge `claude-haiku-4-5`, doctor `claude-sonnet-4-6`). Full steps:
 
 ```bash
 cp .env.example .env   # ANTHROPIC_API_KEY=...

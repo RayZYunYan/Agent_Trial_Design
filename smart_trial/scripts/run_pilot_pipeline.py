@@ -159,7 +159,7 @@ def main() -> int:
         print("No ANTHROPIC_API_KEY or GROQ_API_KEY — using full mock (SMART_TRIAL_USE_MOCK=1)")
     else:
         if os.environ.get("ANTHROPIC_API_KEY"):
-            print("Using Anthropic API (claude-sonnet-4-6) for patient/doctor/judge")
+            print("Using Anthropic API (haiku patient/judge, sonnet doctor)")
         else:
             print("Using Groq API for patient/doctor/judge")
 

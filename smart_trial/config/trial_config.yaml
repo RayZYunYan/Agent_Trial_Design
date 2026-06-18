@@ -21,7 +21,7 @@ data:
 models:
   patient_simulator:
     provider: "anthropic"
-    model_name: "claude-sonnet-4-6"
+    model_name: "claude-haiku-4-5"
     temperature: 0.3
   doctor_agent:
     provider: "anthropic"
@@ -29,7 +29,7 @@ models:
     temperature: 0.5
   judge:
     provider: "anthropic"
-    model_name: "claude-sonnet-4-6"
+    model_name: "claude-haiku-4-5"
     temperature: 0.1
 
 randomization:

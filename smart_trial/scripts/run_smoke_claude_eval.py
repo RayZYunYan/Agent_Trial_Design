@@ -64,7 +64,7 @@ def main() -> int:
     env["PYTHONIOENCODING"] = "utf-8"
     env.pop("SMART_TRIAL_MOCK_JUDGE", None)
     env.pop("SMART_TRIAL_USE_MOCK", None)
-    print("\nMode: Claude (anthropic) patient/doctor/judge — claude-sonnet-4-6")
+    print("\nMode: Claude — patient/judge claude-haiku-4-5, doctor claude-sonnet-4-6")
 
     py = sys.executable
     _run([py, "-m", "smart_trial.run_eval", "--config", BASELINE_CONFIG, "--no-resume"], env)

@@ -31,4 +31,4 @@ mkdir -p smart_trial/outputs/eval/logs
 # Uncomment if your CARC module env lacks dependencies:
 # pip install -q -r smart_trial/requirements.txt
 
-echo "CARC setup OK | cwd=$(pwd) | model=claude-sonnet-4-6 | anthropic key=set"
+echo "CARC setup OK | cwd=$(pwd) | models=haiku(patient,judge)+sonnet(doctor) | anthropic key=set"

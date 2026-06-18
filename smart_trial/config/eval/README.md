@@ -1,7 +1,7 @@
 # Phase-1 benchmark eval (CARC + Claude)
 
 Fixed cohort **medqa_0000–medqa_0049** (50 cases).  
-Models: **Anthropic `claude-sonnet-4-6`** (patient, doctor, judge). See `models_claude.yaml`.
+Models: **Anthropic** — patient/judge `claude-haiku-4-5`, doctor `claude-sonnet-4-6`. See `models_claude.yaml`.
 
 ## CARC quick start
 
