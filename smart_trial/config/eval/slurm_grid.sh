@@ -4,10 +4,11 @@
 #SBATCH --time=120:00:00
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G
-#SBATCH --account=YOUR_CARC_ACCOUNT
-#SBATCH --partition=YOUR_PARTITION
+#SBATCH --account=ruishanl_1185
+#SBATCH --partition=oneweek
 #
-# USC CARC — benchmark grid (50 cases × 9 paths, Claude + RAG).
+# USC CARC Discovery — benchmark grid (50 cases × 9 paths, Claude + RAG).
+# oneweek: 120h walltime exceeds main (48h); --resume continues if needed.
 # Build BM25 index first if missing: sbatch smart_trial/config/eval/slurm_build_bm25.sh
 #   sbatch smart_trial/config/eval/slurm_grid.sh
 #

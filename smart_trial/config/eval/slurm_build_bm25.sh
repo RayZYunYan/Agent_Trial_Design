@@ -4,8 +4,8 @@
 #SBATCH --time=04:00:00
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=16G
-#SBATCH --account=YOUR_CARC_ACCOUNT
-#SBATCH --partition=YOUR_PARTITION
+#SBATCH --account=ruishanl_1185
+#SBATCH --partition=main
 #
 # One-time (or refresh): build smart_trial/data/bm25_index.pkl for grid RAG.
 #   sbatch smart_trial/config/eval/slurm_build_bm25.sh

@@ -28,7 +28,11 @@ fi
 
 mkdir -p smart_trial/outputs/eval/logs
 
-# Uncomment if your CARC module env lacks dependencies:
-# pip install -q -r smart_trial/requirements.txt
+module purge
+module load python/3.11.9
+if [[ -f .venv/bin/activate ]]; then
+  # shellcheck disable=SC1091
+  source .venv/bin/activate
+fi
 
-echo "CARC setup OK | cwd=$(pwd) | models=haiku(patient,judge)+sonnet(doctor) | anthropic key=set"
+echo "CARC setup OK | cwd=$(pwd) | python=$(command -v python) | models=haiku(patient,judge)+sonnet(doctor) | anthropic key=set"

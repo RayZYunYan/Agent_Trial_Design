@@ -4,10 +4,10 @@
 #SBATCH --time=48:00:00
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G
-#SBATCH --account=YOUR_CARC_ACCOUNT
-#SBATCH --partition=YOUR_PARTITION
+#SBATCH --account=ruishanl_1185
+#SBATCH --partition=main
 #
-# USC CARC — benchmark baseline (50 cases, Claude).
+# USC CARC Discovery — benchmark baseline (50 cases, Claude).
 #   sbatch smart_trial/config/eval/slurm_baseline.sh
 #
 # Requires: ANTHROPIC_API_KEY in repo-root .env (see carc_setup.sh).

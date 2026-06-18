@@ -20,7 +20,7 @@ cp .env.example .env   # edit: ANTHROPIC_API_KEY=...
 pip install -r smart_trial/requirements.txt
 ```
 
-Edit SLURM headers in `slurm_*.sh`: `#SBATCH --account=` and `#SBATCH --partition=`.
+Edit SLURM headers in `slurm_*.sh` if your account differs (default: `ruishanl_1185` on Discovery `main` / grid on `oneweek`).
 
 ### 3. Optional: verify Claude smoke (1 case)
 
@@ -30,7 +30,7 @@ python smart_trial/scripts/run_smoke_claude_eval.py
 
 Output: `smart_trial/outputs/eval/smoke_claude/`
 
-### 4. Submit jobs
+### 4. Submit jobs (Discovery cluster — `ssh discovery.usc.edu`)
 
 ```bash
 # Once (grid RAG index; needs HuggingFace network on compute node):

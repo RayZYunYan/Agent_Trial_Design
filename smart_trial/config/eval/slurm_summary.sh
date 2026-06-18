@@ -4,8 +4,8 @@
 #SBATCH --time=00:30:00
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=4G
-#SBATCH --account=YOUR_CARC_ACCOUNT
-#SBATCH --partition=YOUR_PARTITION
+#SBATCH --account=ruishanl_1185
+#SBATCH --partition=main
 #
 # Run after baseline + grid jobs complete.
 #   sbatch smart_trial/config/eval/slurm_summary.sh
