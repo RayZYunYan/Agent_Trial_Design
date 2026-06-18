@@ -115,6 +115,8 @@ def main(argv: list[str] | None = None) -> int:
     with open(orch.config_path, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
+    mode = (cfg.get("run") or {}).get("mode", "smart_random")
+
     cases = load_cases_from_config(cfg)
     cache_path = (cfg.get("data") or {}).get("red_flag_cache")
     if cache_path:
@@ -133,7 +135,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Warning: missing {len(missing)} case_ids: {sorted(missing)[:5]}...", file=sys.stderr)
 
     seed = args.seed if args.seed is not None else int(cfg.get("randomization", {}).get("seed", 42))
-    mode = (cfg.get("run") or {}).get("mode", "smart_random")
 
     orch._output_dir.mkdir(parents=True, exist_ok=True)
     if not args.resume:
