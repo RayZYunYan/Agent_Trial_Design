@@ -51,12 +51,11 @@ persona:
 rag:
   enabled: true
   k: 3                                        # number of passages to retrieve
+  retriever_mode: "hybrid"                    # bm25 | contriever | hybrid
   index_cache: "smart_trial/data/bm25_index.pkl"
-
-rag:
-  enabled: true
-  k: 3                                        # number of passages to retrieve
-  index_cache: "smart_trial/data/bm25_index.pkl"
+  contriever_cache: "smart_trial/data/contriever_embeddings.npy"
+  contriever_model: "facebook/contriever"
+  rrf_k: 60
 
 logging:
   output_dir: "smart_trial/outputs/encounters"

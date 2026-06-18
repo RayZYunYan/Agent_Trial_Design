@@ -16,7 +16,7 @@ from smart_trial.core.persona import (
 from smart_trial.core.randomizer import TrialRandomizer
 from smart_trial.trajectory_log.trajectory_logger import TrajectoryLogger
 from smart_trial.models.model_client import ModelClient
-from smart_trial.rag.retriever import BM25Retriever, BaseRetriever
+from smart_trial.rag.retriever import BM25Retriever, ContrieverRetriever, HybridRetriever, BaseRetriever
 
 
 
@@ -71,23 +71,54 @@ class TrialOrchestrator:
             resolve_path(rag_cfg.get("index_cache", "smart_trial/data/bm25_index.pkl"))
         )
         self._retriever: Optional[BaseRetriever] = None
+        if self._rag_enabled:
+            self._retriever = self._init_retriever(rag_cfg)
 
     # ------------------------------------------------------------------
-    # RAG helpers
+    # Retriever factory
     # ------------------------------------------------------------------
-    def _get_retriever(self) -> Optional[BaseRetriever]:
-        """Load BM25 index on first Stage-2 retrieval use (not at orchestrator init)."""
-        if not self._rag_enabled:
-            return None
-        if self._retriever is not None:
-            return self._retriever
+    def _init_retriever(self, rag_cfg: dict) -> Optional[BaseRetriever]:
+        mode = str(rag_cfg.get("retriever_mode", "bm25")).lower()
+        bm25_cache = str(resolve_path(rag_cfg.get("index_cache", "smart_trial/data/bm25_index.pkl")))
+        contriever_cache = str(resolve_path(
+            rag_cfg.get("contriever_cache", "smart_trial/data/contriever_embeddings.npy")
+        ))
+        contriever_model = rag_cfg.get("contriever_model", "facebook/contriever")
+        rrf_k = int(rag_cfg.get("rrf_k", 60))
+
         try:
-            self._retriever = BM25Retriever.load(cache_path=self._rag_index_cache)
+            if mode == "bm25":
+                print("[RAG] Retriever mode: BM25")
+                return BM25Retriever.load(cache_path=bm25_cache)
+
+            if mode == "contriever":
+                print("[RAG] Retriever mode: Contriever")
+                bm25 = BM25Retriever.load(cache_path=bm25_cache)
+                return ContrieverRetriever.load(
+                    passages=bm25._passages,
+                    cache_path=contriever_cache,
+                    model_name=contriever_model,
+                )
+
+            if mode == "hybrid":
+                print("[RAG] Retriever mode: Hybrid (BM25 + Contriever RRF)")
+                bm25 = BM25Retriever.load(cache_path=bm25_cache)
+                contriever = ContrieverRetriever.load(
+                    passages=bm25._passages,
+                    cache_path=contriever_cache,
+                    model_name=contriever_model,
+                )
+                return HybridRetriever(bm25=bm25, contriever=contriever, rrf_k=rrf_k)
+
+            raise ValueError(f"Unknown rag.retriever_mode: {mode!r}. Choose 'bm25', 'contriever', or 'hybrid'.")
         except Exception as exc:
             print(f"[RAG] Warning: could not load retriever ({exc}); retrieval disabled.")
             self._rag_enabled = False
             return None
-        return self._retriever
+
+    # ------------------------------------------------------------------
+    # RAG helpers
+    # ------------------------------------------------------------------
 
     @staticmethod
     def _parse_retrieval_query(text: str) -> Optional[str]:
@@ -223,14 +254,12 @@ class TrialOrchestrator:
             )
             pending_retrieval_context = None
 
-            if arm_retrieval_enabled:
+            if arm_retrieval_enabled and self._retriever is not None:
                 query = self._parse_retrieval_query(doctor_msg)
                 if query:
-                    retriever = self._get_retriever()
-                    if retriever is not None:
-                        passages = retriever.retrieve(query, k=self._rag_k)
-                        pending_retrieval_context = self._format_retrieval_result(passages)
-                        print(f"[RAG] Query: {query!r} → {len(passages)} passages retrieved")
+                    passages = self._retriever.retrieve(query, k=self._rag_k)
+                    pending_retrieval_context = self._format_retrieval_result(passages)
+                    print(f"[RAG] Query: {query!r} → {len(passages)} passages retrieved")
 
             conf_str = f" [conf={confidence:.2f}]" if confidence is not None else ""
             print(f"[Turn {turn}]{conf_str}")
