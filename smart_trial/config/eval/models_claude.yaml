@@ -1,0 +1,18 @@
+# Shared Claude model id for CARC benchmark (verified via smoke_claude).
+# Keep in sync across config_baseline.yaml, config_grid.yaml, config_*_pilot.yaml, etc.
+
+CLAUDE_PROVIDER: anthropic
+CLAUDE_MODEL: claude-sonnet-4-6
+
+patient_simulator:
+  provider: anthropic
+  model_name: claude-sonnet-4-6
+  temperature: 0.3
+doctor_agent:
+  provider: anthropic
+  model_name: claude-sonnet-4-6
+  temperature: 0.5
+judge:
+  provider: anthropic
+  model_name: claude-sonnet-4-6
+  temperature: 0.1

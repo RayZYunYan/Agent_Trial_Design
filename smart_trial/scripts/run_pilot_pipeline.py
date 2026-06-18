@@ -154,12 +154,14 @@ def _wipe_test_outputs() -> None:
 def main() -> int:
     load_dotenv(PROJECT_ROOT / ".env")
 
-    use_api = bool(os.environ.get("GROQ_API_KEY") or os.environ.get("ANTHROPIC_API_KEY"))
+    use_api = bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("GROQ_API_KEY"))
     if not use_api:
-        print("No GROQ_API_KEY or ANTHROPIC_API_KEY — using full mock (SMART_TRIAL_USE_MOCK=1)")
+        print("No ANTHROPIC_API_KEY or GROQ_API_KEY — using full mock (SMART_TRIAL_USE_MOCK=1)")
     else:
-        provider = "Anthropic" if os.environ.get("ANTHROPIC_API_KEY") else "Groq"
-        print(f"Using {provider} API for patient/doctor/judge (no mock judge)")
+        if os.environ.get("ANTHROPIC_API_KEY"):
+            print("Using Anthropic API (claude-sonnet-4-6) for patient/doctor/judge")
+        else:
+            print("Using Groq API for patient/doctor/judge")
 
     print("\n=== Clearing prior test outputs (pilot/, smoke/) ===")
     _wipe_test_outputs()

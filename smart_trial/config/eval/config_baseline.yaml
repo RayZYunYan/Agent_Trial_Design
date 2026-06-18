@@ -1,5 +1,5 @@
-# Benchmark baseline eval — medqa_0000..0049, no SMART stages/strategy.
-# Run: python -m smart_trial.run_eval --config smart_trial/config/eval/config_baseline.yaml
+# Benchmark baseline eval — medqa_0000..0049, Claude API, no SMART stages/strategy.
+# CARC: sbatch smart_trial/config/eval/slurm_baseline.sh
 
 run:
   mode: baseline
@@ -24,16 +24,16 @@ data:
 
 models:
   patient_simulator:
-    provider: "groq"
-    model_name: "llama-3.1-8b-instant"
+    provider: anthropic
+    model_name: claude-sonnet-4-6
     temperature: 0.3
   doctor_agent:
-    provider: "groq"
-    model_name: "llama-3.1-8b-instant"
+    provider: anthropic
+    model_name: claude-sonnet-4-6
     temperature: 0.5
   judge:
-    provider: "groq"
-    model_name: "llama-3.1-8b-instant"
+    provider: anthropic
+    model_name: claude-sonnet-4-6
     temperature: 0.1
 
 randomization:

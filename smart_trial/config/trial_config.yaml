@@ -16,22 +16,20 @@ data:
   # Optional per-case red flags (build with scripts/build_category_red_flag_cache.py)
   red_flag_cache: "smart_trial/data/red_flag_cache.json"
 
-# Hot-swap backends here (repo-root .env: GROQ_API_KEY; GEMINI_API_KEY only if you use gemini).
-# Pilot: one small Groq model for patient + doctor + judge — free tier friendly, lower token cost.
-# Strategy / arms: config/arms/*.yaml (see doc/SMART_Implementation_Plan.md).
-# Supported providers: mock | groq | openai | anthropic | gemini
+# API: Anthropic Claude (CARC benchmark). Set ANTHROPIC_API_KEY in repo-root .env.
+# Model reference: smart_trial/config/eval/models_claude.yaml
 models:
   patient_simulator:
-    provider: "groq"
-    model_name: "llama-3.1-8b-instant"
+    provider: "anthropic"
+    model_name: "claude-sonnet-4-6"
     temperature: 0.3
   doctor_agent:
-    provider: "groq"
-    model_name: "llama-3.1-8b-instant"
+    provider: "anthropic"
+    model_name: "claude-sonnet-4-6"
     temperature: 0.5
   judge:
-    provider: "groq"
-    model_name: "llama-3.1-8b-instant"
+    provider: "anthropic"
+    model_name: "claude-sonnet-4-6"
     temperature: 0.1
 
 randomization:
