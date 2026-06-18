@@ -74,6 +74,16 @@ Outputs (canonical clean test):
 
 `--no-resume` now deletes **all** `*.jsonl` in the job output dir (aggregate + per-case).
 
+## Claude smoke (1 case × 9 grid, real judge)
+
+Requires `ANTHROPIC_API_KEY` in repo-root `.env`. Output: `smart_trial/outputs/eval/smoke_claude/`.
+
+```bash
+python smart_trial/scripts/run_smoke_claude_eval.py
+```
+
+Configs: `config_smoke_claude_baseline.yaml`, `config_smoke_claude_grid.yaml` (`claude-sonnet-4-6`).
+
 ## Pilot test (5 cases, API + real judge)
 
 Requires `GROQ_API_KEY` or `ANTHROPIC_API_KEY` in repo-root `.env`. Clears `pilot/` and `smoke/` first.

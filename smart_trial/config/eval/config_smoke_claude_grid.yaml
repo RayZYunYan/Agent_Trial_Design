@@ -1,0 +1,50 @@
+# Claude smoke: 1 case × 9 grid paths (medqa_0000), real judge.
+# python smart_trial/scripts/run_smoke_claude_eval.py
+
+run:
+  mode: smart_grid
+
+eval:
+  fix_persona_per_case: true
+  case_ids:
+    - medqa_0000
+
+trial:
+  stage1_turns: 2
+  stage2_turns: 2
+  R1_responder_threshold: 6
+  R2_high_confidence_threshold: 0.7
+
+data:
+  source: local
+  local:
+    path: data/all_dev_good.jsonl
+    max_cases: null
+  red_flag_cache: smart_trial/data/red_flag_cache.json
+
+models:
+  patient_simulator:
+    provider: anthropic
+    model_name: claude-sonnet-4-6
+    temperature: 0.3
+  doctor_agent:
+    provider: anthropic
+    model_name: claude-sonnet-4-6
+    temperature: 0.5
+  judge:
+    provider: anthropic
+    model_name: claude-sonnet-4-6
+    temperature: 0.1
+
+randomization:
+  seed: 42
+
+persona:
+  mode: per_case_seed
+
+rag:
+  enabled: false
+
+logging:
+  output_dir: smart_trial/outputs/eval/smoke_claude/grid
+  aggregate_filename: grid_encounters.jsonl
