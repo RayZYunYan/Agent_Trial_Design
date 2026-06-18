@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable, Set, Tuple
+from typing import Set, Tuple
 
 from smart_trial.trajectory_log.trajectory_logger import TrajectoryLogger
 
@@ -26,6 +26,15 @@ def load_completed_grid_keys(aggregate_path: str | Path) -> Set[Tuple[str, str]]
         path_id = enc.get("path_id")
         if case_id and path_id:
             done.add((str(case_id), str(path_id)))
+    return done
+
+
+def load_completed_adaptive_case_ids(aggregate_path: str | Path) -> Set[str]:
+    """Return case_ids with a closed-loop adaptive encounter in the aggregate file."""
+    done: Set[str] = set()
+    for enc in TrajectoryLogger.load_aggregate(str(aggregate_path)):
+        if enc.get("run_mode") == "smart_adaptive_loop" and enc.get("case_id"):
+            done.add(str(enc["case_id"]))
     return done
 
 

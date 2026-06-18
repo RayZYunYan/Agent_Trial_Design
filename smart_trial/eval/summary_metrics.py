@@ -298,6 +298,47 @@ def compute_adaptive_by_category(
     return out
 
 
+def _load_closed_loop_rows(
+    adaptive_path: Optional[Path],
+    case_ids: List[str],
+) -> List[Dict[str, Any]]:
+    if not adaptive_path or not adaptive_path.is_file():
+        return []
+    rows = _filter_benchmark(TrajectoryLogger.load_aggregate(str(adaptive_path)), case_ids)
+    return [r for r in rows if r.get("run_mode") == "smart_adaptive_loop"]
+
+
+def compute_closed_loop_metrics(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    if not rows:
+        return {
+            "metric": "closed_loop_adaptive",
+            "strategy": "pi_hat_online",
+            "n": 0,
+            "avg_correctness": float("nan"),
+            "error": "adaptive file missing or empty",
+        }
+    return {
+        "metric": "closed_loop_adaptive",
+        "strategy": "pi_hat_online",
+        "n": len(rows),
+        "avg_correctness": _mean_correctness(rows),
+    }
+
+
+def compute_closed_loop_by_category(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for cat in CASE_CATEGORIES:
+        subset = [r for r in rows if _normalize_category(r.get("case_category")) == cat]
+        out.append({
+            "metric": "category_closed_loop_adaptive",
+            "strategy": "pi_hat_online",
+            "case_category": cat,
+            "n": len(subset),
+            "avg_correctness": _mean_correctness(subset),
+        })
+    return out
+
+
 def write_category_jsonls(
     encounters: List[Dict[str, Any]],
     out_dir: Path,
@@ -332,9 +373,12 @@ def build_summary(
     grid_path: Path,
     case_ids: Optional[List[str]] = None,
     *,
+    adaptive_path: Optional[Path] = None,
+    closed_loop_case_ids: Optional[List[str]] = None,
     write_category_jsonl: bool = False,
 ) -> pd.DataFrame:
     cohort = case_ids or BENCHMARK_CASE_IDS
+    closed_cohort = closed_loop_case_ids or cohort
     baseline_rows = _load_baseline_rows(baseline_path, cohort)
     grid_rows = _load_grid_rows(grid_path, cohort)
 
@@ -377,11 +421,17 @@ def build_summary(
         )
     )
 
+    closed_rows = _load_closed_loop_rows(adaptive_path, closed_cohort)
+    rows.append(compute_closed_loop_metrics(closed_rows))
+    rows.extend(compute_closed_loop_by_category(closed_rows))
+
     if write_category_jsonl:
         if baseline_path and baseline_path.is_file():
             write_category_jsonls(baseline_rows, baseline_path.parent / "by_category")
         if grid_path.is_file():
             write_category_jsonls(grid_rows, grid_path.parent / "by_category")
+        if adaptive_path and adaptive_path.is_file() and closed_rows:
+            write_category_jsonls(closed_rows, adaptive_path.parent / "by_category")
 
     summary = pd.DataFrame(rows)
     return summary.reindex(columns=SUMMARY_COLUMNS)
@@ -402,6 +452,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Path to baseline_encounters.jsonl",
     )
     parser.add_argument(
+        "--adaptive",
+        type=Path,
+        default=None,
+        help="Path to adaptive_encounters.jsonl (closed-loop Phase 2)",
+    )
+    parser.add_argument(
         "--out",
         type=Path,
         default=Path("smart_trial/outputs/eval/summary_metrics.csv"),
@@ -419,9 +475,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    from smart_trial.eval.case_lists import CLOSED_LOOP_CASE_IDS
+
     summary = build_summary(
         args.baseline,
         args.grid,
+        adaptive_path=args.adaptive,
+        closed_loop_case_ids=CLOSED_LOOP_CASE_IDS if args.adaptive else None,
         write_category_jsonl=not args.no_category_jsonl,
     )
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -444,10 +504,16 @@ def main(argv: Optional[List[str]] = None) -> int:
             "baseline": summary[summary["metric"] == "baseline"].to_dict(orient="records"),
             "static_paths": summary[summary["metric"] == "static_path"].to_dict(orient="records"),
             "adaptive": summary[summary["metric"] == "qlearning_adaptive"].to_dict(orient="records"),
+            "closed_loop_adaptive": summary[
+                summary["metric"] == "closed_loop_adaptive"
+            ].to_dict(orient="records"),
             "by_category": {
                 "baseline": summary[summary["metric"] == "category_baseline"].to_dict(orient="records"),
                 "static_paths": summary[summary["metric"] == "category_static_path"].to_dict(orient="records"),
                 "adaptive": summary[summary["metric"] == "category_adaptive"].to_dict(orient="records"),
+                "closed_loop_adaptive": summary[
+                    summary["metric"] == "category_closed_loop_adaptive"
+                ].to_dict(orient="records"),
             },
         }
         with open(args.json_out, "w", encoding="utf-8") as f:

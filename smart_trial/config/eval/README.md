@@ -40,7 +40,10 @@ sbatch smart_trial/config/eval/slurm_build_bm25.sh
 sbatch smart_trial/config/eval/slurm_baseline.sh
 sbatch smart_trial/config/eval/slurm_grid.sh
 
-# After both finish:
+# Phase 2 closed-loop adaptive (after grid exists for initial_q_from):
+sbatch smart_trial/config/eval/slurm_adaptive.sh
+
+# After baseline + grid finish (and optional adaptive):
 sbatch smart_trial/config/eval/slurm_summary.sh
 ```
 
@@ -75,7 +78,8 @@ python -m smart_trial.eval.summary_metrics \
   --out smart_trial/outputs/eval/summary_metrics.csv
 ```
 
-Produces average correctness for baseline, 9 static paths, Q-learning adaptive, and **88 category rows** (8 buckets × baseline/paths/adaptive). Writes `by_category/*.jsonl` detail files.
+Produces average correctness for baseline, 9 static paths, offline Q-learning adaptive,
+closed-loop adaptive (optional), and category breakdown rows.
 
 ## Groq smoke (legacy local)
 
@@ -95,4 +99,4 @@ Requires `ANTHROPIC_API_KEY`. Clears `pilot/` and `smoke/` first.
 
 ## Phase 2
 
-Closed-loop **medqa_0100–0149**: `config_adaptive.yaml` (placeholder).
+Closed-loop **medqa_0100–0149**: `config_adaptive.yaml` + `slurm_adaptive.sh` (requires Phase-1 `grid_encounters.jsonl`).

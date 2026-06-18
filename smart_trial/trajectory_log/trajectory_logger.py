@@ -30,6 +30,7 @@ class TrajectoryLogger:
         path_id: Optional[str] = None,
         forced_a1: Optional[str] = None,
         forced_a2: Optional[str] = None,
+        extra: Optional[Dict[str, Any]] = None,
     ) -> None:
         self._turns = []
         self._stage2_confidences = []
@@ -54,6 +55,8 @@ class TrajectoryLogger:
             "timestamp_start": datetime.now().isoformat(),
             "trajectory": [],
         }
+        if extra:
+            self._current.update(extra)
 
     def log_turn(
         self,

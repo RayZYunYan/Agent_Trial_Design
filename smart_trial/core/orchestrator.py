@@ -15,6 +15,7 @@ from smart_trial.core.persona import (
     select_default_persona_id,
 )
 from smart_trial.core.randomizer import TrialRandomizer
+from smart_trial.eval.adaptive_policy import AdaptivePolicyAssigner
 from smart_trial.trajectory_log.trajectory_logger import TrajectoryLogger
 from smart_trial.models.model_client import ModelClient
 from smart_trial.rag.retriever import BM25Retriever, BaseRetriever
@@ -41,6 +42,7 @@ class TrialOrchestrator:
     Run modes (config ``run.mode``):
       - smart_random: default SMART trial with random arm assignment
       - smart_grid: SMART with forced (A1, A2); ignores Stage-2 pool restrictions
+      - smart_adaptive_loop: closed-loop π̂ with biased-random assignment (Phase 2)
       - baseline: single-phase visit, no strategy arms, max_turns dialogue
     """
 
@@ -190,6 +192,7 @@ class TrialOrchestrator:
         forced_a1: Optional[str] = None,
         forced_a2: Optional[str] = None,
         path_id: Optional[str] = None,
+        policy_assigner: Optional[AdaptivePolicyAssigner] = None,
     ) -> Dict[str, Any]:
         if seed is None:
             seed = int(self.config.get("randomization", {}).get("seed", 42))
@@ -205,6 +208,7 @@ class TrialOrchestrator:
             forced_a1=forced_a1,
             forced_a2=forced_a2,
             path_id=path_id,
+            policy_assigner=policy_assigner,
         )
 
     def _run_baseline(
@@ -280,13 +284,22 @@ class TrialOrchestrator:
         forced_a1: Optional[str],
         forced_a2: Optional[str],
         path_id: Optional[str],
+        policy_assigner: Optional[AdaptivePolicyAssigner] = None,
     ) -> Dict[str, Any]:
         rand_cfg = self.config.get("randomization", {})
         randomizer = TrialRandomizer(seed, stratify_by=rand_cfg.get("stratify_by", "case_category"))
         logger = self._make_logger()
         persona = self._persona_for_case(case, seed, persona)
+        persona_dict = persona.to_dict() if persona else {}
 
-        stage1_arm_id = forced_a1 or randomizer.assign_stage1_arm(case)
+        stage1_propensity: Optional[float] = None
+        stage1_q: Optional[Dict[str, float]] = None
+        if run_mode == "smart_adaptive_loop" and policy_assigner is not None and not forced_a1:
+            stage1_arm_id, stage1_propensity, stage1_q = policy_assigner.assign_stage1(
+                case, persona_dict, seed
+            )
+        else:
+            stage1_arm_id = forced_a1 or randomizer.assign_stage1_arm(case)
         stage1_arm = load_arm_config(stage1_arm_id, self._arms_dir)
         resolved_path_id = path_id or (
             f"{forced_a1}_{forced_a2}" if forced_a1 and forced_a2 else None
@@ -298,21 +311,33 @@ class TrialOrchestrator:
         print(f"Stage 1 Arm: {stage1_arm_id} ({stage1_arm.get('name', '')})")
         if resolved_path_id:
             print(f"Path: {resolved_path_id}")
+        if run_mode == "smart_adaptive_loop" and policy_assigner is not None:
+            print(f"Policy refit generation: {policy_assigner.refit_generation}")
         print(f"Persona: {persona}")
         print(f"{'=' * 60}\n")
 
         doctor = DoctorAgent(self.doctor_model, stage1_arm)
         patient = PatientAgent(self.patient_model, case, persona=persona)
 
+        encounter_extra: Optional[Dict[str, Any]] = None
+        if run_mode == "smart_adaptive_loop":
+            encounter_extra = {
+                "assignment_mode": "policy_biased_random" if policy_assigner else "uniform",
+                "refit_generation": policy_assigner.refit_generation if policy_assigner else None,
+                "stage1_propensity": stage1_propensity,
+                "stage1_q_values": stage1_q,
+            }
+
         logger.start_encounter(
             case,
             seed,
             stage1_arm_id,
-            persona=persona.to_dict() if persona else None,
+            persona=persona_dict or None,
             run_mode=run_mode,
             path_id=resolved_path_id,
             forced_a1=forced_a1,
             forced_a2=forced_a2,
+            extra=encounter_extra,
         )
 
         initial_msg = doctor.get_initial_message(case)
@@ -343,6 +368,18 @@ class TrialOrchestrator:
                 "R1_total": R1.get("total", 0),
                 "forced": True,
             }
+        elif run_mode == "smart_adaptive_loop" and policy_assigner is not None:
+            stage2_assignment = policy_assigner.assign_stage2(
+                case,
+                persona_dict,
+                stage1_arm_id,
+                R1,
+                stage1_turns,
+                seed,
+            )
+            stage2_arm_id = stage2_assignment["arm"]
+            logger._current["stage2_propensity"] = stage2_assignment.get("propensity")
+            logger._current["stage2_q_values"] = stage2_assignment.get("q_values")
         else:
             stage2_assignment = randomizer.assign_stage2_arm(case, R1)
             stage2_arm_id = stage2_assignment["arm"]

@@ -17,6 +17,7 @@ source "${SCRIPT_DIR}/carc_setup.sh"
 
 BASELINE="smart_trial/outputs/eval/baseline/baseline_encounters.jsonl"
 GRID="smart_trial/outputs/eval/grid/grid_encounters.jsonl"
+ADAPTIVE="smart_trial/outputs/eval/adaptive/adaptive_encounters.jsonl"
 OUT="smart_trial/outputs/eval/summary_metrics.csv"
 
 if [[ ! -f "$BASELINE" ]]; then
@@ -28,9 +29,15 @@ if [[ ! -f "$GRID" ]]; then
   exit 1
 fi
 
+ADAPTIVE_ARG=()
+if [[ -f "$ADAPTIVE" ]]; then
+  ADAPTIVE_ARG=(--adaptive "$ADAPTIVE")
+fi
+
 python -m smart_trial.eval.summary_metrics \
   --baseline "$BASELINE" \
   --grid "$GRID" \
+  "${ADAPTIVE_ARG[@]}" \
   --out "$OUT"
 
-echo "Wrote $OUT and by_category/*.jsonl under baseline/ and grid/"
+echo "Wrote $OUT and by_category/*.jsonl under baseline/, grid/, and adaptive/ (if present)"

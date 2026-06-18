@@ -1,11 +1,12 @@
-"""Batch runner for benchmark eval: baseline and 50×9 grid."""
+"""Batch runner for benchmark eval: baseline, grid, and closed-loop adaptive."""
 from __future__ import annotations
 
 import argparse
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+SMART_TRIAL_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = SMART_TRIAL_ROOT.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -19,6 +20,7 @@ from smart_trial.data.loader import (
     load_cases_from_config,
     load_red_flag_cache,
 )
+from smart_trial.eval.adaptive_loop import resolve_closed_loop_case_ids, run_adaptive_loop
 from smart_trial.eval.case_lists import BENCHMARK_CASE_IDS, GRID_PATHS, path_id_for
 from smart_trial.eval.output_utils import clear_eval_output_dir
 from smart_trial.eval.resume import load_completed_baseline_keys, load_completed_grid_keys
@@ -120,7 +122,11 @@ def main(argv: list[str] | None = None) -> int:
         if resolved.is_file():
             apply_red_flag_cache(cases, load_red_flag_cache(str(resolved)))
 
-    case_ids = _resolve_case_ids(cfg)
+    case_ids = (
+        resolve_closed_loop_case_ids(cfg)
+        if mode == "smart_adaptive_loop"
+        else _resolve_case_ids(cfg)
+    )
     run_cases = filter_cases_by_ids(cases, case_ids)
     if len(run_cases) != len(case_ids):
         missing = set(case_ids) - {c["case_id"] for c in run_cases}
@@ -144,8 +150,19 @@ def main(argv: list[str] | None = None) -> int:
     elif mode == "smart_grid":
         print(f"Grid paths ({len(grid_paths)}): {[path_id_for(a, b) for a, b in grid_paths]}")
         ran = run_grid(orch, run_cases, seed, args.resume, grid_paths)
+    elif mode == "smart_adaptive_loop":
+        run_cfg = cfg.get("run") or {}
+        print(
+            f"Closed-loop adaptive | refit_every_n={run_cfg.get('refit_every_n', 5)} "
+            f"| burn_in={run_cfg.get('burn_in', 0)} "
+            f"| initial_q_from={run_cfg.get('initial_q_from')}"
+        )
+        ran = run_adaptive_loop(orch, run_cases, seed, args.resume)
     else:
-        print(f"run_eval only supports baseline and smart_grid; got {mode!r}", file=sys.stderr)
+        print(
+            f"run_eval supports baseline, smart_grid, smart_adaptive_loop; got {mode!r}",
+            file=sys.stderr,
+        )
         return 1
 
     print(f"Finished. New encounters this run: {ran}")

@@ -1,14 +1,15 @@
-# Phase-2 closed-loop placeholder — uses grid-trained Q on medqa_0100..0149.
-# Not wired in phase-1; kept for CARC job scaffolding.
+# Phase-2 closed-loop adaptive — medqa_0100..0149, warm-start from grid Q.
 
 run:
-  mode: smart_adaptive_loop   # TODO: implement in phase 2
+  mode: smart_adaptive_loop
   refit_every_n: 5
+  burn_in: 0
+  policy_temperature: 1.0
   initial_q_from: "smart_trial/outputs/eval/grid/grid_encounters.jsonl"
 
 eval:
   fix_persona_per_case: true
-  case_ids: null   # defaults to medqa_0100..0149 when implemented
+  case_ids: null   # defaults to medqa_0100..0149
 
 trial:
   stage1_turns: 4

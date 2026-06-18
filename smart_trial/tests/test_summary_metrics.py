@@ -113,7 +113,7 @@ def test_build_summary():
     assert len(TrajectoryLogger.load_aggregate(str(baseline_path.parent / "by_category" / "Other.jsonl"))) == 1
     assert len(TrajectoryLogger.load_aggregate(str(grid_path.parent / "by_category" / "Other.jsonl"))) == len(GRID_PATHS)
 
-    assert summary.shape[0] == 11 + len(CASE_CATEGORIES) * (1 + len(GRID_PATHS) + 1)
+    assert summary.shape[0] == 99 + 1 + len(CASE_CATEGORIES)  # offline rows + closed-loop block
 
     shutil.rmtree(tmp_path, ignore_errors=True)
 
