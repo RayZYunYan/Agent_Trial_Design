@@ -37,6 +37,41 @@ def _stable_persona_seed(global_seed: int, case_id: str) -> int:
     return int(digest[:16], 16)
 
 
+def _parse_rounds_config(trial_cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """Resolve fixed vs adaptive turn limits from trial.rounds."""
+    rounds = dict(trial_cfg.get("rounds") or {})
+    mode = str(rounds.get("mode", "fixed")).lower()
+    stage1 = dict(rounds.get("stage1") or {})
+    stage2 = dict(rounds.get("stage2") or {})
+    red_flags_min = stage1.get("red_flags_min")
+    if red_flags_min is not None:
+        red_flags_min = int(red_flags_min)
+    return {
+        "mode": mode,
+        "adaptive": mode == "adaptive",
+        "stage1_max": int(trial_cfg.get("stage1_turns", 4)),
+        "stage2_max": int(trial_cfg.get("stage2_turns", 6)),
+        "stage1_min_turns": int(stage1.get("min_turns", 2)),
+        "stage1_check_every": max(1, int(stage1.get("check_every", 1))),
+        "stage1_red_flags_min": red_flags_min,
+        "stage2_min_turns": int(stage2.get("min_turns", 2)),
+        "stage2_consecutive_high": max(1, int(stage2.get("consecutive_high", 2))),
+        "stage2_auto_conclude": bool(stage2.get("auto_conclude", True)),
+        "early_diagnosis_confidence": float(trial_cfg.get("early_diagnosis_confidence", 0.80)),
+    }
+
+
+def _r1_allows_early_stop(r1: Dict[str, Any], red_flags_min: Optional[int]) -> bool:
+    if not r1.get("responder"):
+        return False
+    if red_flags_min is None:
+        return True
+    try:
+        return int(r1.get("red_flags", 0)) >= red_flags_min
+    except (TypeError, ValueError):
+        return False
+
+
 class TrialOrchestrator:
     """
     Run modes (config ``run.mode``):
@@ -157,6 +192,9 @@ class TrialOrchestrator:
             case_rng = random.Random(_stable_persona_seed(seed, case["case_id"]))
             return PatientPersona.sample(case_rng)
         return self._resolve_persona(case, random.Random(seed))
+
+    def _parse_rounds_config(self) -> Dict[str, Any]:
+        return _parse_rounds_config(self.config.get("trial") or {})
 
     def _make_client(self, role: str) -> ModelClient:
         cfg = dict(self.config["models"][role])
@@ -328,6 +366,14 @@ class TrialOrchestrator:
                 "stage1_q_values": stage1_q,
             }
 
+        rounds_cfg = self._parse_rounds_config()
+        stage1_max = rounds_cfg["stage1_max"]
+        stage2_max = rounds_cfg["stage2_max"]
+        adaptive_rounds = rounds_cfg["adaptive"]
+        if encounter_extra is None:
+            encounter_extra = {}
+        encounter_extra["rounds_mode"] = rounds_cfg["mode"]
+
         logger.start_encounter(
             case,
             seed,
@@ -344,9 +390,18 @@ class TrialOrchestrator:
         print(f"[Opening]\nDoctor: {initial_msg}\n")
         last_patient = patient.respond(initial_msg)
 
-        stage1_turns = int(self.config.get("trial", {}).get("stage1_turns", 4))
         print(f"--- STAGE 1 ({stage1_arm.get('name', '')}) ---")
-        for turn in range(1, stage1_turns + 1):
+        if adaptive_rounds:
+            print(
+                f"(rounds: adaptive, max={stage1_max}, min={rounds_cfg['stage1_min_turns']}, "
+                f"R1 threshold={self.judge.r1_responder_threshold})"
+            )
+
+        R1: Optional[Dict[str, Any]] = None
+        stage1_early_stop: Optional[str] = None
+        stage1_turns_used = 0
+        for turn in range(1, stage1_max + 1):
+            stage1_turns_used = turn
             doctor_msg, confidence = doctor.respond(last_patient)
             print(f"[Turn {turn}]")
             print(f"Doctor: {doctor_msg}")
@@ -354,9 +409,28 @@ class TrialOrchestrator:
             print(f"Patient: {last_patient}\n")
             logger.log_turn(turn, 1, stage1_arm_id, doctor_msg, last_patient, confidence)
 
-        print("--- Computing R1 ---")
-        R1 = self.judge.compute_R1(doctor.conversation_history, case)
+            if adaptive_rounds and turn >= rounds_cfg["stage1_min_turns"]:
+                if turn % rounds_cfg["stage1_check_every"] == 0:
+                    r1_probe = self.judge.compute_R1(doctor.conversation_history, case)
+                    if _r1_allows_early_stop(r1_probe, rounds_cfg["stage1_red_flags_min"]):
+                        R1 = r1_probe
+                        stage1_early_stop = "r1_responder"
+                        print(
+                            f"[Adaptive] R1={R1.get('total')}/10 — early Stage 1 stop at turn {turn}\n"
+                        )
+                        break
+
+        if R1 is None:
+            print("--- Computing R1 ---")
+            R1 = self.judge.compute_R1(doctor.conversation_history, case)
+        else:
+            print("--- R1 (adaptive checkpoint) ---")
         print(f"R1 Score: {R1.get('total')}/10 | Responder: {R1.get('responder')}")
+
+        logger._current["stage1_turns_used"] = stage1_turns_used
+        logger._current["stage1_turns_max"] = stage1_max
+        if stage1_early_stop:
+            logger._current["stage1_early_stop"] = stage1_early_stop
 
         if forced_a2:
             pool_key = "responder" if R1.get("responder") else "non-responder"
@@ -374,7 +448,7 @@ class TrialOrchestrator:
                 persona_dict,
                 stage1_arm_id,
                 R1,
-                stage1_turns,
+                stage1_turns_used,
                 seed,
             )
             stage2_arm_id = stage2_assignment["arm"]
@@ -394,6 +468,12 @@ class TrialOrchestrator:
         logger.log_stage_transition(1, R1, stage2_arm_id, stage2_assignment)
         doctor.switch_arm(stage2_arm)
         print(f"--- STAGE 2 ({stage2_arm.get('name', '')}) ---")
+        if adaptive_rounds:
+            print(
+                f"(rounds: adaptive, max={stage2_max}, min={rounds_cfg['stage2_min_turns']}, "
+                f"early diagnosis conf>={rounds_cfg['early_diagnosis_confidence']:.2f}, "
+                f"consecutive={rounds_cfg['stage2_consecutive_high']})"
+            )
 
         arm_retrieval_enabled = (
             self._rag_enabled
@@ -401,16 +481,25 @@ class TrialOrchestrator:
         )
 
         stage2_hist_start = len(doctor.conversation_history)
-        stage2_turns = int(self.config.get("trial", {}).get("stage2_turns", 6))
-        last_stage2_turn = stage1_turns + stage2_turns
+        stage2_start = stage1_turns_used + 1
+        last_stage2_turn = stage1_turns_used + stage2_max
         pending_retrieval_context: Optional[str] = None
-        for turn in range(stage1_turns + 1, last_stage2_turn + 1):
-            force_conclude = turn == last_stage2_turn
+        consecutive_high = 0
+        early_conclude = False
+        stage2_early_stop: Optional[str] = None
+        stage2_turn_idx = 0
+
+        for turn in range(stage2_start, last_stage2_turn + 1):
+            stage2_turn_idx += 1
+            force_conclude = turn == last_stage2_turn or early_conclude
             doctor_msg, confidence = doctor.respond(
                 last_patient,
                 force_conclude=force_conclude,
                 retrieval_context=pending_retrieval_context,
             )
+            if early_conclude and not doctor.has_concluded():
+                stage2_early_stop = stage2_early_stop or "high_confidence"
+            early_conclude = False
             pending_retrieval_context = None
 
             if arm_retrieval_enabled:
@@ -427,6 +516,8 @@ class TrialOrchestrator:
             print(f"Doctor: {doctor_msg}")
 
             if doctor.has_concluded():
+                if stage2_early_stop is None and turn < last_stage2_turn:
+                    stage2_early_stop = "doctor_concluded"
                 logger.log_turn(turn, 2, stage2_arm_id, doctor_msg, "", confidence)
                 print()
                 break
@@ -435,6 +526,32 @@ class TrialOrchestrator:
             last_patient = patient.respond(patient_facing_msg)
             print(f"Patient: {last_patient}\n")
             logger.log_turn(turn, 2, stage2_arm_id, doctor_msg, last_patient, confidence)
+
+            if (
+                adaptive_rounds
+                and rounds_cfg["stage2_auto_conclude"]
+                and confidence is not None
+            ):
+                if confidence >= rounds_cfg["early_diagnosis_confidence"]:
+                    consecutive_high += 1
+                else:
+                    consecutive_high = 0
+                if (
+                    stage2_turn_idx >= rounds_cfg["stage2_min_turns"]
+                    and consecutive_high >= rounds_cfg["stage2_consecutive_high"]
+                    and turn < last_stage2_turn
+                ):
+                    early_conclude = True
+                    stage2_early_stop = "high_confidence"
+                    print(
+                        f"[Adaptive] confidence >= {rounds_cfg['early_diagnosis_confidence']:.2f} "
+                        f"for {consecutive_high} turn(s) — forcing diagnosis next turn\n"
+                    )
+
+        logger._current["stage2_turns_used"] = stage2_turn_idx
+        logger._current["stage2_turns_max"] = stage2_max
+        if stage2_early_stop:
+            logger._current["stage2_early_stop"] = stage2_early_stop
 
         print("--- Computing R2 ---")
         stage2_confidences = logger.get_stage2_confidences()

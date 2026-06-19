@@ -1,0 +1,66 @@
+# Adaptive dialogue rounds: early Stage 1 exit on R1 responder; early Stage 2
+# diagnosis when confidence >= early_diagnosis_confidence (consecutive turns).
+# Compare with config_grid.yaml (rounds.mode: fixed) on the same cohort.
+#
+# python -m smart_trial.run_eval --config smart_trial/config/eval/config_adaptive_rounds.yaml
+
+run:
+  mode: smart_grid
+
+eval:
+  fix_persona_per_case: true
+  case_ids: null   # defaults to medqa_0000..0049 when null in run_eval
+
+trial:
+  stage1_turns: 4
+  stage2_turns: 6
+  R1_responder_threshold: 6
+  R2_high_confidence_threshold: 0.7
+  early_diagnosis_confidence: 0.80
+  rounds:
+    mode: "adaptive"
+    stage1:
+      min_turns: 2
+      check_every: 1
+      red_flags_min: 1
+    stage2:
+      min_turns: 2
+      consecutive_high: 2
+      auto_conclude: true
+
+data:
+  source: local
+  local:
+    path: data/all_dev_good.jsonl
+    max_cases: null
+  red_flag_cache: smart_trial/data/red_flag_cache.json
+
+models:
+  patient_simulator:
+    provider: anthropic
+    model_name: claude-haiku-4-5
+    temperature: 0.3
+  doctor_agent:
+    provider: anthropic
+    model_name: claude-sonnet-4-6
+    temperature: 0.5
+  judge:
+    provider: anthropic
+    model_name: claude-haiku-4-5
+    temperature: 0.1
+
+randomization:
+  seed: 42
+  stratify_by: case_category
+
+persona:
+  mode: per_case_seed
+
+rag:
+  enabled: true
+  k: 3
+  index_cache: smart_trial/data/bm25_index.pkl
+
+logging:
+  output_dir: smart_trial/outputs/eval/adaptive_rounds
+  aggregate_filename: adaptive_rounds_encounters.jsonl

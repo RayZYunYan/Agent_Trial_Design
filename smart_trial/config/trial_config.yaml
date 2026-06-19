@@ -3,6 +3,22 @@ trial:
   stage2_turns: 6                  # final diagnosis is delivered within Stage 2
   R1_responder_threshold: 6        # score >= 6 out of 10 = responder
   R2_high_confidence_threshold: 0.7
+  early_diagnosis_confidence: 0.80   # Stage 2 adaptive early stop (stricter than R2 threshold)
+
+  # Hot-swap fixed vs adaptive dialogue length (change mode only).
+  # fixed:    Stage 1/2 run exactly stage1_turns / stage2_turns.
+  # adaptive: Stage 1 stops early when R1 responder; Stage 2 when confidence
+  #           meets early_diagnosis_confidence for consecutive_high turns.
+  rounds:
+    mode: "fixed"                    # fixed | adaptive
+    stage1:
+      min_turns: 2                   # adaptive only: judge R1 after this many turns
+      check_every: 1
+      red_flags_min: 1               # optional safety gate (null to disable)
+    stage2:
+      min_turns: 2
+      consecutive_high: 2
+      auto_conclude: true
 
 # Cases: use local JSONL (MediQ-style dev file in repo) or HuggingFace iMEDQA.
 data:
