@@ -35,7 +35,6 @@ class TrajectoryLogger:
             "R1": None,
             "stage2_arm": None,
             "R2": None,
-            "stage3_arm": None,
             "outcome": None,
             "total_turns": 0,
             "timestamp_start": datetime.now().isoformat(),
@@ -70,10 +69,10 @@ class TrajectoryLogger:
             self._current["R1"] = R_score
             self._current["stage2_arm"] = next_arm
             self._current["stage2_pool"] = pool_info.get("pool_used")
-        elif stage == 2:
-            self._current["R2"] = R_score
-            self._current["stage3_arm"] = next_arm
-            self._current["stage3_pool"] = pool_info.get("pool_used")
+
+    def log_R2(self, R_score: Dict[str, Any]) -> None:
+        """R2 is recorded as a measured covariate (no Stage-3 re-randomization)."""
+        self._current["R2"] = R_score
 
     def get_stage2_confidences(self) -> List[float]:
         return list(self._stage2_confidences)

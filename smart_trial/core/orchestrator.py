@@ -16,6 +16,7 @@ from smart_trial.core.persona import (
 from smart_trial.core.randomizer import TrialRandomizer
 from smart_trial.trajectory_log.trajectory_logger import TrajectoryLogger
 from smart_trial.models.model_client import ModelClient
+from smart_trial.rag.retriever import BM25Retriever, ContrieverRetriever, HybridRetriever, BaseRetriever
 
 
 
@@ -33,8 +34,8 @@ def resolve_path(path_str: str) -> Path:
 class TrialOrchestrator:
     """
     Stage 1: turns 1–4 (after opening + patient acknowledgement).
-    Stage 2: turns 5–10.
-    Stage 3: turns 11–20 until conclusion or cap.
+    Stage 2: turns 5–10; the doctor delivers the final [DIAGNOSIS] within this
+    stage (early once confident, forced on the last turn).
     """
 
     def __init__(self, config_path: Optional[str] = None):
@@ -62,6 +63,82 @@ class TrialOrchestrator:
 
         self._arms_dir = SMART_TRIAL_ROOT / "config" / "arms"
         self._personas_dir = SMART_TRIAL_ROOT / "config" / "personas"
+
+        rag_cfg = self.config.get("rag", {})
+        self._rag_enabled = bool(rag_cfg.get("enabled", False))
+        self._rag_k = int(rag_cfg.get("k", 3))
+        self._rag_index_cache = str(
+            resolve_path(rag_cfg.get("index_cache", "smart_trial/data/bm25_index.pkl"))
+        )
+        self._retriever: Optional[BaseRetriever] = None
+        if self._rag_enabled:
+            self._retriever = self._init_retriever(rag_cfg)
+
+    # ------------------------------------------------------------------
+    # Retriever factory
+    # ------------------------------------------------------------------
+    def _init_retriever(self, rag_cfg: dict) -> Optional[BaseRetriever]:
+        mode = str(rag_cfg.get("retriever_mode", "bm25")).lower()
+        bm25_cache = str(resolve_path(rag_cfg.get("index_cache", "smart_trial/data/bm25_index.pkl")))
+        contriever_cache = str(resolve_path(
+            rag_cfg.get("contriever_cache", "smart_trial/data/contriever_embeddings.npy")
+        ))
+        contriever_model = rag_cfg.get("contriever_model", "facebook/contriever")
+        rrf_k = int(rag_cfg.get("rrf_k", 60))
+
+        try:
+            if mode == "bm25":
+                print("[RAG] Retriever mode: BM25")
+                return BM25Retriever.load(cache_path=bm25_cache)
+
+            if mode == "contriever":
+                print("[RAG] Retriever mode: Contriever")
+                bm25 = BM25Retriever.load(cache_path=bm25_cache)
+                return ContrieverRetriever.load(
+                    passages=bm25._passages,
+                    cache_path=contriever_cache,
+                    model_name=contriever_model,
+                )
+
+            if mode == "hybrid":
+                print("[RAG] Retriever mode: Hybrid (BM25 + Contriever RRF)")
+                bm25 = BM25Retriever.load(cache_path=bm25_cache)
+                contriever = ContrieverRetriever.load(
+                    passages=bm25._passages,
+                    cache_path=contriever_cache,
+                    model_name=contriever_model,
+                )
+                return HybridRetriever(bm25=bm25, contriever=contriever, rrf_k=rrf_k)
+
+            raise ValueError(f"Unknown rag.retriever_mode: {mode!r}. Choose 'bm25', 'contriever', or 'hybrid'.")
+        except Exception as exc:
+            print(f"[RAG] Warning: could not load retriever ({exc}); retrieval disabled.")
+            self._rag_enabled = False
+            return None
+
+    # ------------------------------------------------------------------
+    # RAG helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _parse_retrieval_query(text: str) -> Optional[str]:
+        """Extract query string from [RETRIEVAL QUERY: <q>] in doctor message."""
+        import re
+        match = re.search(r"\[RETRIEVAL QUERY:\s*(.+?)\]", text, re.IGNORECASE)
+        return match.group(1).strip() if match else None
+
+    @staticmethod
+    def _strip_internal_markers(text: str) -> str:
+        """Remove [RETRIEVAL QUERY: ...] lines before sending doctor message to patient."""
+        import re
+        cleaned = re.sub(r"\[RETRIEVAL QUERY:[^\]]*\]\s*", "", text, flags=re.IGNORECASE)
+        return cleaned.strip()
+
+    @staticmethod
+    def _format_retrieval_result(passages: List[str]) -> str:
+        """Format top-k passages into a block injected into doctor system prompt."""
+        body = "\n\n".join(passages)
+        return f"[RETRIEVAL RESULT]\n{body}\n[/RETRIEVAL RESULT]"
 
     def _resolve_persona(
         self, case: Dict[str, Any], rng: random.Random
@@ -157,15 +234,45 @@ class TrialOrchestrator:
         doctor.switch_arm(stage2_arm)
         print(f"--- STAGE 2 ({stage2_arm.get('name', '')}) ---")
 
+        arm_retrieval_enabled = (
+            self._rag_enabled
+            and bool((stage2_arm.get("tool_access") or {}).get("retrieval", False))
+        )
+
         stage2_hist_start = len(doctor.conversation_history)
-        for turn in range(5, 11):
-            doctor_msg, confidence = doctor.respond(last_patient)
+        stage2_turns = int(self.config.get("trial", {}).get("stage2_turns", 6))
+        last_stage2_turn = 4 + stage2_turns
+        pending_retrieval_context: Optional[str] = None
+        for turn in range(5, last_stage2_turn + 1):
+            # The model cannot count turns itself, so the orchestrator forces the
+            # conclusion on the last Stage-2 turn (identical across arms).
+            force_conclude = turn == last_stage2_turn
+            doctor_msg, confidence = doctor.respond(
+                last_patient,
+                force_conclude=force_conclude,
+                retrieval_context=pending_retrieval_context,
+            )
+            pending_retrieval_context = None
+
+            if arm_retrieval_enabled and self._retriever is not None:
+                query = self._parse_retrieval_query(doctor_msg)
+                if query:
+                    passages = self._retriever.retrieve(query, k=self._rag_k)
+                    pending_retrieval_context = self._format_retrieval_result(passages)
+                    print(f"[RAG] Query: {query!r} → {len(passages)} passages retrieved")
+
             conf_str = f" [conf={confidence:.2f}]" if confidence is not None else ""
             print(f"[Turn {turn}]{conf_str}")
             print(f"Doctor: {doctor_msg}")
-            last_patient = patient.respond(doctor_msg)
-            print(f"Patient: {last_patient}\n")
 
+            if doctor.has_concluded():
+                logger.log_turn(turn, 2, stage2_arm_id, doctor_msg, "", confidence)
+                print()
+                break
+
+            patient_facing_msg = self._strip_internal_markers(doctor_msg)
+            last_patient = patient.respond(patient_facing_msg)
+            print(f"Patient: {last_patient}\n")
             logger.log_turn(turn, 2, stage2_arm_id, doctor_msg, last_patient, confidence)
 
         print("--- Computing R2 ---")
@@ -181,36 +288,12 @@ class TrialOrchestrator:
         )
         print(
             f"R2 Confidence: {R2['confidence_level']} (final={R2['final_confidence']:.2f}, "
-            f"source={R2.get('r2_source', '')})"
+            f"source={R2.get('r2_source', '')})\n"
         )
 
-        stage3_assignment = randomizer.assign_stage3_arm(case, R2)
-        stage3_arm_id = stage3_assignment["arm"]
-        stage3_arm = load_arm_config(stage3_arm_id, self._arms_dir)
-
-        print(
-            f"Stage 3 Arm: {stage3_arm_id} ({stage3_arm.get('name', '')}) "
-            f"[Pool: {stage3_assignment['pool_used']}]\n"
-        )
-
-        logger.log_stage_transition(2, R2, stage3_arm_id, stage3_assignment)
-
-        doctor.switch_arm(stage3_arm)
-        print(f"--- STAGE 3 ({stage3_arm.get('name', '')}) ---")
-
-        turn = 11
-        max_turn = int(self.config.get("trial", {}).get("max_turns", 20))
-        while not doctor.has_concluded() and turn <= max_turn:
-            doctor_msg, confidence = doctor.respond(last_patient)
-            print(f"[Turn {turn}]")
-            print(f"Doctor: {doctor_msg}")
-            last_patient = patient.respond(doctor_msg)
-            print(f"Patient: {last_patient}\n")
-
-            logger.log_turn(turn, 3, stage3_arm_id, doctor_msg, last_patient, confidence)
-            turn += 1
-            if doctor.has_concluded():
-                break
+        # R2 is kept as a measured covariate for analysis; it no longer drives
+        # any re-randomization (Stage 3 was removed from the design).
+        logger.log_R2(R2)
 
         print("--- Evaluating Outcome ---")
         final_diag = doctor.get_final_diagnosis()
@@ -230,8 +313,7 @@ class TrialOrchestrator:
 
         print(f"\n{'=' * 60}")
         print(
-            f"Trajectory: {trajectory['stage1_arm']} -> "
-            f"{trajectory['stage2_arm']} -> {trajectory['stage3_arm']}"
+            f"Trajectory: {trajectory['stage1_arm']} -> {trajectory['stage2_arm']}"
         )
         print(f"Saved to: {self._output_dir / (case['case_id'] + '.jsonl')}")
         print(f"{'=' * 60}\n")

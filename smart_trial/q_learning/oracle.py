@@ -17,7 +17,6 @@ from .config import (
     R2_HIGH_CONFIDENCE_THRESHOLD,
     STAGE1_ARMS,
     STAGE2_POOLS,
-    STAGE3_POOLS,
 )
 from . import q_learning
 
@@ -27,13 +26,9 @@ DEFAULT_DTR_SPEC: Dict = {
     "stage1_default": "A1a",
     "stage2_responder_best": "A2a",
     "stage2_non_responder_best": "A2a",
-    "stage3_high_best": "A3a",
-    "stage3_low_best": "A3c",
     "base_prob": 0.35,
     "a1c_cardiology_bonus": 0.18,
-    "a2a_responder_bonus": 0.12,
-    "a3a_high_bonus": 0.20,
-    "a3c_low_bonus": 0.20,
+    "a2a_responder_bonus": 0.20,
 }
 
 
@@ -43,13 +38,9 @@ class OracleDTRSpec:
     stage1_default: str
     stage2_responder_best: str
     stage2_non_responder_best: str
-    stage3_high_best: str
-    stage3_low_best: str
     base_prob: float
     a1c_cardiology_bonus: float
     a2a_responder_bonus: float
-    a3a_high_bonus: float
-    a3c_low_bonus: float
 
     @classmethod
     def from_dict(cls, d: Optional[Dict] = None) -> "OracleDTRSpec":
@@ -65,17 +56,11 @@ def _true_pi2(responder: bool, spec: OracleDTRSpec) -> str:
     return spec.stage2_responder_best if responder else spec.stage2_non_responder_best
 
 
-def _true_pi3(r2_level: str, spec: OracleDTRSpec) -> str:
-    return spec.stage3_high_best if r2_level == "high" else spec.stage3_low_best
-
-
 def success_prob(
     category: str,
     a1: str,
     responder: bool,
     a2: str,
-    r2_level: str,
-    a3: str,
     spec: OracleDTRSpec,
 ) -> float:
     p = spec.base_prob
@@ -83,10 +68,6 @@ def success_prob(
         p += spec.a1c_cardiology_bonus
     if responder and a2 == "A2a":
         p += spec.a2a_responder_bonus
-    if r2_level == "high" and a3 == "A3a":
-        p += spec.a3a_high_bonus
-    if r2_level == "low" and a3 == "A3c":
-        p += spec.a3c_low_bonus
     return float(np.clip(p, 0.05, 0.95))
 
 
@@ -114,6 +95,7 @@ def generate_synthetic_trajectories(
         pool = STAGE2_POOLS["responder" if r1_resp[i] else "non-responder"]
         a2[i] = rng.choice(pool)
 
+    # R2 is post-treatment (descriptive only); generated for schema parity.
     r2_final = np.clip(
         rng.normal(0.55, 0.15, size=n) + (a2 == "A2a") * 0.1,
         0.2,
@@ -121,16 +103,9 @@ def generate_synthetic_trajectories(
     )
     r2_level = np.where(r2_final >= R2_HIGH_CONFIDENCE_THRESHOLD, "high", "low")
 
-    a3 = np.empty(n, dtype=object)
-    for i in range(n):
-        pool = STAGE3_POOLS[str(r2_level[i])]
-        a3[i] = rng.choice(pool)
-
     y = np.zeros(n, dtype=int)
     for i in range(n):
-        p = success_prob(
-            cats[i], a1[i], bool(r1_resp[i]), a2[i], str(r2_level[i]), a3[i], spec,
-        )
+        p = success_prob(cats[i], a1[i], bool(r1_resp[i]), a2[i], spec)
         y[i] = int(rng.binomial(1, p))
 
     return pd.DataFrame({
@@ -154,9 +129,6 @@ def generate_synthetic_trajectories(
         "R2_avg_conf": r2_final,
         "R2_level": r2_level,
         "stage2_turns": np.full(n, 6),
-        "A3": a3,
-        "stage3_pool": r2_level,
-        "stage3_turns": np.full(n, 3),
         "literacy_id": "literacy_I",
         "Y": y,
         "outcome_red_flag_miss": np.zeros(n, dtype=bool),
@@ -166,25 +138,22 @@ def generate_synthetic_trajectories(
 
 def true_optimal_rules(df: pd.DataFrame, spec: OracleDTRSpec) -> pd.DataFrame:
     """Per-row oracle DTR from the generative success-prob structure."""
-    pi1, pi2, pi3 = [], [], []
+    pi1, pi2 = [], []
     for _, row in df.iterrows():
         cat = row["case_category"]
         resp = bool(row["R1_responder"])
-        r2 = str(row["R2_level"])
         pi1.append(_true_pi1(cat, spec))
         pi2.append(_true_pi2(resp, spec))
-        pi3.append(_true_pi3(r2, spec))
-    return pd.DataFrame({"pi1": pi1, "pi2": pi2, "pi3": pi3})
+    return pd.DataFrame({"pi1": pi1, "pi2": pi2})
 
 
 def _agreement_rate(estimated: pd.DataFrame, truth: pd.DataFrame) -> Dict[str, float]:
     merged = pd.concat([estimated.reset_index(drop=True), truth.reset_index(drop=True)], axis=1)
-    merged.columns = ["ep1", "ep2", "ep3", "tp1", "tp2", "tp3"]
+    merged.columns = ["ep1", "ep2", "tp1", "tp2"]
     return {
         "agree_pi1": float((merged["ep1"] == merged["tp1"]).mean()),
         "agree_pi2": float((merged["ep2"] == merged["tp2"]).mean()),
-        "agree_pi3": float((merged["ep3"] == merged["tp3"]).mean()),
-        "agree_all": float((merged[["ep1", "ep2", "ep3"]] == merged[["tp1", "tp2", "tp3"]].values).all(axis=1).mean()),
+        "agree_all": float((merged[["ep1", "ep2"]] == merged[["tp1", "tp2"]].values).all(axis=1).mean()),
     }
 
 
@@ -204,7 +173,7 @@ def recovery_rate(
             truth = true_optimal_rules(df, spec)
             try:
                 result = q_learning.fit(df)
-                est = result.rules[["pi1", "pi2", "pi3"]]
+                est = result.rules[["pi1", "pi2"]]
                 rates = _agreement_rate(est, truth)
                 rows.append({
                     "n": n,
@@ -212,7 +181,6 @@ def recovery_rate(
                     "agreement_rate": rates["agree_all"],
                     "agree_pi1": rates["agree_pi1"],
                     "agree_pi2": rates["agree_pi2"],
-                    "agree_pi3": rates["agree_pi3"],
                     "V_hat": result.value,
                     "value_gap": float(np.mean(df["Y"]) - result.value),
                 })
@@ -223,7 +191,6 @@ def recovery_rate(
                     "agreement_rate": float("nan"),
                     "agree_pi1": float("nan"),
                     "agree_pi2": float("nan"),
-                    "agree_pi3": float("nan"),
                     "V_hat": float("nan"),
                     "value_gap": float("nan"),
                     "error": str(exc),

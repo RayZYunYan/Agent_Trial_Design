@@ -1,3 +1,9 @@
+import os
+
+# Force the mock provider so these tests do not require a real Groq API key.
+# The orchestrator honors this env var in _make_client.
+os.environ.setdefault("SMART_TRIAL_USE_MOCK", "1")
+
 import yaml
 
 from smart_trial.core.orchestrator import TrialOrchestrator
@@ -13,5 +19,6 @@ def test_run_encounter_mock_smoke():
     traj = orch.run_encounter(cases[0], seed=42)
     assert traj["stage1_arm"] in ("A1a", "A1b", "A1c")
     assert traj["stage2_arm"] in ("A2a", "A2b", "A2c")
-    assert traj["stage3_arm"] in ("A3a", "A3b", "A3c")
+    assert "stage3_arm" not in traj
+    assert traj.get("R2") is not None
     assert traj.get("outcome") is not None

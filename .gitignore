@@ -37,6 +37,7 @@ src/keys.py
 *.cache
 *.pkl
 *.pickle
+*.npy
 data/red_flag_cache.json
 
 # Outputs / logs
