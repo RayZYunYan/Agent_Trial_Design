@@ -3,7 +3,7 @@ Read encounter JSONL logs and print a concise summary for pilot review.
 
 Usage (from repo root):
   python -m smart_trial.scripts.summarize_encounters
-  python -m smart_trial.scripts.summarize_encounters --output-dir smart_trial/outputs/encounters
+  python -m smart_trial.scripts.summarize_encounters --output smart_trial/outputs/encounters.jsonl
 """
 
 from __future__ import annotations
@@ -20,10 +20,10 @@ if str(PROJECT_ROOT) not in sys.path:
 from smart_trial.trajectory_log.trajectory_logger import TrajectoryLogger
 
 
-def summarize(output_dir: str, responder_threshold: int = 6) -> None:
-    encounters = TrajectoryLogger.load_all_encounters(output_dir)
+def summarize(output_path: str, responder_threshold: int = 6) -> None:
+    encounters = TrajectoryLogger.load_all_encounters(output_path)
     if not encounters:
-        print(f"No encounters found in {output_dir}")
+        print(f"No encounters found at {output_path}")
         return
 
     real = [e for e in encounters if not _is_mock_encounter(e)]
@@ -95,9 +95,14 @@ def _is_mock_encounter(encounter: dict) -> bool:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Summarize SMART encounter JSONL logs")
     parser.add_argument(
+        "--output",
+        default="smart_trial/outputs/encounters.jsonl",
+        help="Path to a single encounters JSONL file or a directory of per-case *.jsonl files",
+    )
+    parser.add_argument(
         "--output-dir",
-        default="smart_trial/outputs/encounters",
-        help="Directory containing per-case *.jsonl files",
+        default=None,
+        help="Deprecated alias for --output (directory of per-case files)",
     )
     parser.add_argument(
         "--r1-threshold",
@@ -107,7 +112,8 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    out = Path(args.output_dir)
+    path_str = args.output_dir if args.output_dir is not None else args.output
+    out = Path(path_str)
     if not out.is_absolute():
         out = PROJECT_ROOT / out
     summarize(str(out), responder_threshold=args.r1_threshold)

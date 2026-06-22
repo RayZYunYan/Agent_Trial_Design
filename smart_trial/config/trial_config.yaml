@@ -4,11 +4,13 @@ trial:
   R1_responder_threshold: 6        # score >= 6 out of 10 = responder
   R2_high_confidence_threshold: 0.7
 
-# Cases: use local JSONL (MediQ-style dev file in repo) or HuggingFace iMEDQA.
+# Cases: local JSONL (MediQ-style) or HuggingFace stellalisy/mediQ.
+# Full merged set (2685): data/all_mediq_craft_merged.jsonl
+# Smaller dev subset (1272): data/all_dev_good.jsonl
 data:
   source: "local"                   # local | huggingface
   local:
-    path: "data/all_dev_good.jsonl"
+    path: "data/all_mediq_craft_merged.jsonl"
     max_cases: null                 # null = all lines read
   huggingface:
     split: "validation"
@@ -16,10 +18,10 @@ data:
   # Optional per-case red flags (build with scripts/build_category_red_flag_cache.py)
   red_flag_cache: "smart_trial/data/red_flag_cache.json"
 
-# Hot-swap backends here (repo-root .env: GROQ_API_KEY; GEMINI_API_KEY only if you use gemini).
+# Hot-swap backends here (repo-root .env: GROQ_API_KEY; CURSOR_API_KEY for cursor_sdk).
 # Pilot: one small Groq model for patient + doctor + judge — free tier friendly, lower token cost.
 # Strategy / arms: config/arms/*.yaml (see doc/SMART_Implementation_Plan.md).
-# Supported providers: mock | groq | openai | anthropic | gemini
+# Supported providers: mock | groq | openai | anthropic | gemini | cursor_sdk
 models:
   patient_simulator:
     provider: "groq"
@@ -58,5 +60,6 @@ rag:
   rrf_k: 60
 
 logging:
-  output_dir: "smart_trial/outputs/encounters"
+  # One JSON object per line; one encounter per case (append across batch runs).
+  output_file: "smart_trial/outputs/encounters.jsonl"
   format: "jsonl"

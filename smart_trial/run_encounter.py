@@ -25,18 +25,29 @@ def main(argv: list[str] | None = None) -> None:
         load_red_flag_cache,
         pick_diverse_cases,
     )
+    from smart_trial.trajectory_log.trajectory_logger import TrajectoryLogger
 
     parser = argparse.ArgumentParser(description="Run SMART trial encounter(s)")
     parser.add_argument("--config", default=None, help="Path to trial_config.yaml")
     parser.add_argument("--case_id", default=None, help="Run a single case by case_id")
     parser.add_argument("--seed", type=int, default=None, help="Override randomization seed")
-    parser.add_argument("--n", type=int, default=1, help="Run first n cases (ignored if --case_id set)")
+    parser.add_argument(
+        "--n",
+        type=int,
+        default=None,
+        help="Run only the first n cases in file order (default: all cases in the dataset)",
+    )
     parser.add_argument(
         "--diverse",
         type=int,
         default=None,
         metavar="K",
-        help="Run K cases with distinct case_category values (overrides --n)",
+        help="Run K cases with distinct case_category values (overrides default all/n)",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-run even if case_id is already in the output JSONL",
     )
     parser.add_argument(
         "--red-flag-cache",
@@ -58,6 +69,10 @@ def main(argv: list[str] | None = None) -> None:
         case = get_case_by_id(cases, args.case_id)
         if case is None:
             raise SystemExit(f"case_id not found in loaded cases: {args.case_id}")
+        logged = TrajectoryLogger.load_logged_case_ids(str(orch.output_path))
+        if case["case_id"] in logged and not args.force:
+            print(f"Skip {case['case_id']} (already in {orch.output_path}); use --force to re-run.")
+            return
         orch.run_encounter(case, seed=args.seed)
         return
 
@@ -65,12 +80,31 @@ def main(argv: list[str] | None = None) -> None:
         run_cases = pick_diverse_cases(cases, n=max(1, args.diverse))
         if not run_cases:
             raise SystemExit("No cases available for --diverse run.")
+    elif args.n is not None:
+        run_cases = cases[: max(1, args.n)]
     else:
-        n = max(1, args.n)
-        run_cases = cases[:n]
+        run_cases = cases
 
-    for case in run_cases:
+    logged = set() if args.force else TrajectoryLogger.load_logged_case_ids(str(orch.output_path))
+    skipped = 0
+    ran = 0
+    total = len(run_cases)
+
+    print(f"Output: {orch.output_path}")
+    print(f"Cases to process: {total} (dataset has {len(cases)}; skip if already logged)\n")
+
+    for idx, case in enumerate(run_cases, start=1):
+        case_id = case["case_id"]
+        if case_id in logged:
+            skipped += 1
+            print(f"[{idx}/{total}] Skip {case_id} (already logged)")
+            continue
+        print(f"[{idx}/{total}] Running {case_id} ...")
         orch.run_encounter(case, seed=args.seed)
+        logged.add(case_id)
+        ran += 1
+
+    print(f"\nDone. Ran {ran}, skipped {skipped}, output: {orch.output_path}")
 
 
 if __name__ == "__main__":

@@ -59,7 +59,11 @@ class TrialOrchestrator:
         )
 
         log_cfg = self.config.get("logging", {})
-        self._output_dir = resolve_path(log_cfg.get("output_dir", "smart_trial/outputs/encounters"))
+        output_file = log_cfg.get("output_file")
+        self._output_file = resolve_path(output_file) if output_file else None
+        output_dir = log_cfg.get("output_dir")
+        self._output_dir = resolve_path(output_dir) if output_dir else None
+        self._aggregate_filename = log_cfg.get("aggregate_filename")
 
         self._arms_dir = SMART_TRIAL_ROOT / "config" / "arms"
         self._personas_dir = SMART_TRIAL_ROOT / "config" / "personas"
@@ -159,6 +163,24 @@ class TrialOrchestrator:
             return load_persona_from_id(str(pid), self._personas_dir)
         raise ValueError(f"Unknown persona.mode: {mode!r}")
 
+    @property
+    def output_path(self) -> Path:
+        """Primary JSONL destination for logging and resume checks."""
+        if self._output_file is not None:
+            return self._output_file
+        if self._aggregate_filename and self._output_dir is not None:
+            return self._output_dir / self._aggregate_filename
+        if self._output_dir is not None:
+            return self._output_dir
+        return resolve_path("smart_trial/outputs/encounters.jsonl")
+
+    def _make_logger(self) -> TrajectoryLogger:
+        return TrajectoryLogger(
+            str(self._output_dir) if self._output_dir is not None else None,
+            output_file=str(self._output_file) if self._output_file is not None else None,
+            aggregate_filename=self._aggregate_filename,
+        )
+
     def _make_client(self, role: str) -> ModelClient:
         cfg = dict(self.config["models"][role])
         if os.environ.get("SMART_TRIAL_USE_MOCK", "").lower() in ("1", "true", "yes"):
@@ -181,7 +203,7 @@ class TrialOrchestrator:
 
         rand_cfg = self.config.get("randomization", {})
         randomizer = TrialRandomizer(seed, stratify_by=rand_cfg.get("stratify_by", "case_category"))
-        logger = TrajectoryLogger(str(self._output_dir))
+        logger = self._make_logger()
 
         rng = random.Random(seed)
         if persona is None:
@@ -315,7 +337,7 @@ class TrialOrchestrator:
         print(
             f"Trajectory: {trajectory['stage1_arm']} -> {trajectory['stage2_arm']}"
         )
-        print(f"Saved to: {self._output_dir / (case['case_id'] + '.jsonl')}")
+        print(f"Saved to: {self.output_path}")
         print(f"{'=' * 60}\n")
 
         return trajectory
