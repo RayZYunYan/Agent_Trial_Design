@@ -73,6 +73,19 @@ Rules:
         "[CONFIDENCE: 0.XX] and the [DIAGNOSIS] line must come immediately after."
     )
 
+    BASELINE_FINAL_TURN_INSTRUCTION = (
+        "IMPORTANT: This is your final turn of the visit. Do not ask any more "
+        "questions. Deliver your final assessment now. Include a line with "
+        "[DIAGNOSIS] followed by your conclusion and next-step advice."
+    )
+
+    BASELINE_ARM_CONFIG: Dict[str, Any] = {
+        "arm_id": "baseline",
+        "stage": 0,
+        "name": "Baseline",
+        "system_prompt_injection": "",
+    }
+
     def __init__(self, model_client: ModelClient, initial_arm_config: Dict[str, Any]):
         self.model = model_client
         self.current_arm = initial_arm_config
@@ -99,7 +112,12 @@ Rules:
 
         system_prompt = self._build_system_prompt(retrieval_context)
         if force_conclude:
-            system_prompt = f"{system_prompt}\n\n{self.FINAL_TURN_INSTRUCTION}"
+            final_hint = (
+                self.BASELINE_FINAL_TURN_INSTRUCTION
+                if self.current_stage == 0
+                else self.FINAL_TURN_INSTRUCTION
+            )
+            system_prompt = f"{system_prompt}\n\n{final_hint}"
         response = self.model.chat(
             messages=self._conversation_for_api(),
             system_prompt=system_prompt,
@@ -109,7 +127,7 @@ Rules:
         if self.current_stage == 2:
             confidence, response = self._extract_confidence(response)
             self._last_confidence = confidence
-            self._check_conclusion(response)
+        self._check_conclusion(response)
 
         self.conversation_history.append({"role": "assistant", "content": response})
         return response, confidence

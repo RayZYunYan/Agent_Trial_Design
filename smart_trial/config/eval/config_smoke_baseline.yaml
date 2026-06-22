@@ -1,0 +1,50 @@
+# Smoke: 1 case baseline (medqa_0000), mock-friendly short turns.
+# python -m smart_trial.run_eval --config smart_trial/config/eval/config_smoke_baseline.yaml --no-resume
+
+run:
+  mode: baseline
+  baseline_max_turns: 3
+
+eval:
+  fix_persona_per_case: true
+  case_ids:
+    - medqa_0000
+
+trial:
+  stage1_turns: 2
+  stage2_turns: 2
+  R1_responder_threshold: 6
+  R2_high_confidence_threshold: 0.7
+
+data:
+  source: local
+  local:
+    path: data/all_dev_good.jsonl
+    max_cases: null
+
+models:
+  patient_simulator:
+    provider: groq
+    model_name: llama-3.1-8b-instant
+    temperature: 0.3
+  doctor_agent:
+    provider: groq
+    model_name: llama-3.1-8b-instant
+    temperature: 0.5
+  judge:
+    provider: groq
+    model_name: llama-3.1-8b-instant
+    temperature: 0.1
+
+randomization:
+  seed: 42
+
+persona:
+  mode: per_case_seed
+
+rag:
+  enabled: false
+
+logging:
+  output_dir: smart_trial/outputs/eval/smoke/baseline
+  aggregate_filename: baseline_encounters.jsonl

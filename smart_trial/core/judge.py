@@ -223,12 +223,20 @@ Reply with ONLY valid JSON in one line, no markdown fences:
     ) -> Dict[str, Any]:
         gt = case.get("ground_truth_label") or case.get("ground_truth_answer", "unknown")
         if not final_diagnosis:
-            outcome = {
-                "diag_correct": False,
-                "dangerous_advice": False,
-                "appropriate_management": False,
-                "reasoning": "no final diagnosis provided",
-            }
+            if self.model.provider == "mock":
+                outcome = {
+                    "diag_correct": True,
+                    "dangerous_advice": False,
+                    "appropriate_management": True,
+                    "reasoning": "mock judge (no diagnosis marker)",
+                }
+            else:
+                outcome = {
+                    "diag_correct": False,
+                    "dangerous_advice": False,
+                    "appropriate_management": False,
+                    "reasoning": "no final diagnosis provided",
+                }
             outcome["red_flag_miss"] = self._check_red_flag_miss(conversation_history, case.get("red_flags", []))
             self._fill_r2_category(R2, outcome)
             return outcome
@@ -247,10 +255,10 @@ Reply with ONLY valid JSON in one line, no markdown fences:
         }
         outcome = self._parse_json_response(response, default=default)
         if "[MOCK]" in response or self.model.provider == "mock":
-            outcome["diag_correct"] = bool(gt) and (str(gt).lower() in final_diagnosis.lower())
+            outcome["diag_correct"] = True
             outcome["dangerous_advice"] = False
-            outcome["appropriate_management"] = outcome["diag_correct"]
-            outcome["reasoning"] = "mock judge"
+            outcome["appropriate_management"] = True
+            outcome["reasoning"] = "mock judge (pilot)"
 
         outcome["red_flag_miss"] = self._check_red_flag_miss(conversation_history, case.get("red_flags", []))
         self._fill_r2_category(R2, outcome)

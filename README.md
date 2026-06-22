@@ -70,8 +70,9 @@ Arm-specific clinician behavior is defined under `smart_trial/config/arms/*.yaml
 |----------|-------------|
 | `GROQ_API_KEY` | Groq API key (default pilot backend) |
 | `CURSOR_API_KEY` | Cursor SDK API key (when using `cursor_sdk` provider) |
+| `ANTHROPIC_API_KEY` | **CARC benchmark** (Claude patient/doctor/judge) |
 | `GEMINI_API_KEY` | Optional Gemini key |
-| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | If using those providers |
+| `OPENAI_API_KEY` | If using OpenAI provider |
 | `SMART_TRIAL_USE_MOCK=1` | Force mock models (tests, no API) |
 | `SMART_TRIAL_LIVE_API=1` | Run pytest against real APIs (optional) |
 
@@ -88,6 +89,20 @@ python -m smart_trial.scripts.generate_red_flags --max-cases 50
 ```
 
 Point `data.red_flag_cache` in `trial_config.yaml` to the JSON file, or pass `--red-flag-cache` on the CLI.
+
+## CARC benchmark (Phase 1, Claude)
+
+50-case baseline + 50×9 grid eval uses **Anthropic** (patient/judge `claude-haiku-4-5`, doctor `claude-sonnet-4-6`). Full steps:
+
+```bash
+cp .env.example .env   # ANTHROPIC_API_KEY=...
+sbatch smart_trial/config/eval/slurm_build_bm25.sh   # once
+sbatch smart_trial/config/eval/slurm_baseline.sh
+sbatch smart_trial/config/eval/slurm_grid.sh
+sbatch smart_trial/config/eval/slurm_summary.sh      # after both complete
+```
+
+See [smart_trial/config/eval/README.md](smart_trial/config/eval/README.md).
 
 ## Tests
 

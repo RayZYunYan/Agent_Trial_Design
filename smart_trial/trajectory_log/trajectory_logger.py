@@ -49,7 +49,7 @@ class TrajectoryLogger:
         self,
         case: Dict[str, Any],
         seed: int,
-        stage1_arm: str,
+        stage1_arm: Optional[str],
         persona: Optional[Dict[str, Any]] = None,
         *,
         run_mode: Optional[str] = None,

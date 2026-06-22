@@ -16,7 +16,10 @@ env/
 .env/
 conda-env/
 
-# Environment variables / secrets
+# For CARC via git: keep `.env` ignored (set API keys on cluster). Track:
+#   data/all_dev_good.jsonl
+#   smart_trial/data/red_flag_cache.json
+#   smart_trial/data/bm25_index.pkl  (after build; comment out *.pkl above)
 .env
 *.env
 src/keys.py
@@ -35,10 +38,10 @@ src/keys.py
 
 # Data cache
 *.cache
-*.pkl
-*.pickle
-*.npy
-data/red_flag_cache.json
+# CARC bundle — comment out next two lines to git-track bm25 index for upload:
+# *.pkl
+# *.pickle
+# data/red_flag_cache.json
 
 # Outputs / logs
 smart_trial/outputs/*

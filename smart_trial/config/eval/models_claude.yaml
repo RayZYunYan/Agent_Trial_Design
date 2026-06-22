@@ -1,0 +1,19 @@
+# Shared Claude model ids for CARC benchmark.
+# Doctor: Sonnet (diagnosis quality). Patient + judge: Haiku (budget).
+
+CLAUDE_PROVIDER: anthropic
+CLAUDE_SONNET_MODEL: claude-sonnet-4-6
+CLAUDE_HAIKU_MODEL: claude-haiku-4-5
+
+patient_simulator:
+  provider: anthropic
+  model_name: claude-haiku-4-5
+  temperature: 0.3
+doctor_agent:
+  provider: anthropic
+  model_name: claude-sonnet-4-6
+  temperature: 0.5
+judge:
+  provider: anthropic
+  model_name: claude-haiku-4-5
+  temperature: 0.1
