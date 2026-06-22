@@ -5,7 +5,7 @@ Adaptive two-stage clinical encounter simulator with re-randomization and JSONL 
 ## Requirements
 
 - Python 3.10+
-- API key in `.env` (copy from `.envExample`)
+- API key in `.env` (copy from `.env.example`)
 
 ```bash
 pip install -r smart_trial/requirements.txt
