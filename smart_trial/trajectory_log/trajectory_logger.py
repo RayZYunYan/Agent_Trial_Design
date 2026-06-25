@@ -96,6 +96,7 @@ class TrajectoryLogger:
         doctor_message: str,
         patient_message: str,
         confidence: Optional[float] = None,
+        mediq_meta: Optional[Dict[str, Any]] = None,
     ) -> None:
         turn_record: Dict[str, Any] = {
             "turn": turn_number,
@@ -107,6 +108,11 @@ class TrajectoryLogger:
         if confidence is not None:
             turn_record["confidence"] = confidence
             self._stage2_confidences.append(confidence)
+        if mediq_meta:
+            turn_record["mediq"] = mediq_meta
+            letter = mediq_meta.get("letter_choice")
+            if letter:
+                turn_record["shadow_letter"] = letter
 
         self._turns.append(turn_record)
         self._current["total_turns"] = turn_number

@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 import yaml
 
 from smart_trial.core.doctor_agent import DoctorAgent, load_arm_config
+from smart_trial.mediq import MediQConfig
 from smart_trial.core.judge import StageJudge
 from smart_trial.core.patient_agent import PatientAgent
 from smart_trial.core.persona import (
@@ -241,6 +242,51 @@ class TrialOrchestrator:
     def _parse_rounds_config(self) -> Dict[str, Any]:
         return _parse_rounds_config(self.config.get("trial") or {})
 
+    def _mediq_config(self) -> MediQConfig:
+        return MediQConfig.from_dict(self.config.get("mediq"))
+
+    def _make_doctor(
+        self,
+        arm_config: Dict[str, Any],
+        case: Dict[str, Any],
+    ) -> DoctorAgent:
+        return DoctorAgent(
+            self.doctor_model,
+            arm_config,
+            case=case,
+            mediq_config=self._mediq_config(),
+        )
+
+    def _attach_mediq_encounter_fields(
+        self,
+        logger: TrajectoryLogger,
+        doctor: DoctorAgent,
+    ) -> None:
+        if not doctor.mediq_enabled:
+            return
+        logger._current["mediq"] = {
+            "enabled": True,
+            "expert_class": doctor.mediq_config.expert_class,
+            "intermediate_choices": doctor.get_intermediate_choices(),
+            "final_letter_choice": doctor.get_final_letter_choice(),
+        }
+
+    def _evaluate_encounter_outcome(
+        self,
+        *,
+        doctor: DoctorAgent,
+        case: Dict[str, Any],
+        final_diag: Optional[str],
+        R2: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        return self.judge.evaluate_outcome(
+            final_diagnosis=final_diag or "",
+            case=case,
+            conversation_history=doctor.conversation_history,
+            R2=R2,
+            mcq_letter_choice=doctor.get_final_letter_choice() if doctor.mediq_enabled else None,
+        )
+
     def _make_client(self, role: str) -> ModelClient:
         cfg = dict(self.config["models"][role])
         use_mock_all = os.environ.get("SMART_TRIAL_USE_MOCK", "").lower() in ("1", "true", "yes")
@@ -312,7 +358,7 @@ class TrialOrchestrator:
         print(f"Persona: {persona}")
         print(f"{'=' * 60}\n")
 
-        doctor = DoctorAgent(self.doctor_model, dict(DoctorAgent.BASELINE_ARM_CONFIG))
+        doctor = self._make_doctor(dict(DoctorAgent.BASELINE_ARM_CONFIG), case)
         patient = PatientAgent(self.patient_model, case, persona=persona)
 
         logger.start_encounter(
@@ -335,22 +381,26 @@ class TrialOrchestrator:
             print(f"Doctor: {doctor_msg}")
 
             if doctor.has_concluded():
-                logger.log_turn(turn, 0, "baseline", doctor_msg, "", None)
+                logger.log_turn(
+                    turn, 0, "baseline", doctor_msg, "", None,
+                    mediq_meta=doctor.get_last_mediq_meta(),
+                )
                 print()
                 break
 
             last_patient = patient.respond(doctor_msg)
             print(f"Patient: {last_patient}\n")
-            logger.log_turn(turn, 0, "baseline", doctor_msg, last_patient, None)
+            logger.log_turn(
+                turn, 0, "baseline", doctor_msg, last_patient, None,
+                mediq_meta=doctor.get_last_mediq_meta(),
+            )
 
         print("--- Evaluating Outcome ---")
         final_diag = doctor.get_final_diagnosis()
         r2 = self._neutral_r2()
-        outcome = self.judge.evaluate_outcome(
-            final_diagnosis=final_diag or "",
-            case=case,
-            conversation_history=doctor.conversation_history,
-            R2=r2,
+        self._attach_mediq_encounter_fields(logger, doctor)
+        outcome = self._evaluate_encounter_outcome(
+            doctor=doctor, case=case, final_diag=final_diag, R2=r2,
         )
 
         trajectory = logger.finalize(outcome)
@@ -399,7 +449,7 @@ class TrialOrchestrator:
         print(f"Persona: {persona}")
         print(f"{'=' * 60}\n")
 
-        doctor = DoctorAgent(self.doctor_model, stage1_arm)
+        doctor = self._make_doctor(stage1_arm, case)
         patient = PatientAgent(self.patient_model, case, persona=persona)
 
         encounter_extra: Optional[Dict[str, Any]] = None
@@ -452,7 +502,10 @@ class TrialOrchestrator:
             print(f"Doctor: {doctor_msg}")
             last_patient = patient.respond(doctor_msg)
             print(f"Patient: {last_patient}\n")
-            logger.log_turn(turn, 1, stage1_arm_id, doctor_msg, last_patient, confidence)
+            logger.log_turn(
+                turn, 1, stage1_arm_id, doctor_msg, last_patient, confidence,
+                mediq_meta=doctor.get_last_mediq_meta(),
+            )
 
             if adaptive_rounds and turn >= rounds_cfg["stage1_min_turns"]:
                 if turn % rounds_cfg["stage1_check_every"] == 0:
@@ -562,14 +615,20 @@ class TrialOrchestrator:
             if doctor.has_concluded():
                 if stage2_early_stop is None and turn < last_stage2_turn:
                     stage2_early_stop = "doctor_concluded"
-                logger.log_turn(turn, 2, stage2_arm_id, doctor_msg, "", confidence)
+                logger.log_turn(
+                    turn, 2, stage2_arm_id, doctor_msg, "", confidence,
+                    mediq_meta=doctor.get_last_mediq_meta(),
+                )
                 print()
                 break
 
             patient_facing_msg = self._strip_internal_markers(doctor_msg)
             last_patient = patient.respond(patient_facing_msg)
             print(f"Patient: {last_patient}\n")
-            logger.log_turn(turn, 2, stage2_arm_id, doctor_msg, last_patient, confidence)
+            logger.log_turn(
+                turn, 2, stage2_arm_id, doctor_msg, last_patient, confidence,
+                mediq_meta=doctor.get_last_mediq_meta(),
+            )
 
             if (
                 adaptive_rounds
@@ -616,11 +675,9 @@ class TrialOrchestrator:
 
         print("--- Evaluating Outcome ---")
         final_diag = doctor.get_final_diagnosis()
-        outcome = self.judge.evaluate_outcome(
-            final_diagnosis=final_diag or "",
-            case=case,
-            conversation_history=doctor.conversation_history,
-            R2=R2,
+        self._attach_mediq_encounter_fields(logger, doctor)
+        outcome = self._evaluate_encounter_outcome(
+            doctor=doctor, case=case, final_diag=final_diag, R2=R2,
         )
 
         trajectory = logger.finalize(outcome)

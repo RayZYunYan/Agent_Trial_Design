@@ -220,6 +220,7 @@ Reply with ONLY valid JSON in one line, no markdown fences:
         case: Dict[str, Any],
         conversation_history: List[Dict[str, Any]],
         R2: Dict[str, Any],
+        mcq_letter_choice: Optional[str] = None,
     ) -> Dict[str, Any]:
         gt = case.get("ground_truth_label") or case.get("ground_truth_answer", "unknown")
         if not final_diagnosis:
@@ -239,6 +240,7 @@ Reply with ONLY valid JSON in one line, no markdown fences:
                 }
             outcome["red_flag_miss"] = self._check_red_flag_miss(conversation_history, case.get("red_flags", []))
             self._fill_r2_category(R2, outcome)
+            outcome["mcq_correct"] = self._compute_mcq_correct(case, mcq_letter_choice)
             return outcome
 
         prompt = self.OUTCOME_PROMPT.format(
@@ -262,7 +264,20 @@ Reply with ONLY valid JSON in one line, no markdown fences:
 
         outcome["red_flag_miss"] = self._check_red_flag_miss(conversation_history, case.get("red_flags", []))
         self._fill_r2_category(R2, outcome)
+        outcome["mcq_correct"] = self._compute_mcq_correct(case, mcq_letter_choice)
         return outcome
+
+    @staticmethod
+    def _compute_mcq_correct(
+        case: Dict[str, Any],
+        letter_choice: Optional[str],
+    ) -> Optional[bool]:
+        if not letter_choice:
+            return None
+        truth = str(case.get("ground_truth_idx") or case.get("ground_truth_answer") or "").strip().upper()[:1]
+        if not truth or truth not in "ABCD":
+            return None
+        return str(letter_choice).strip().upper()[:1] == truth
 
     def _fill_r2_category(self, R2: Dict[str, Any], outcome: Dict[str, Any]) -> None:
         if R2.get("confidence_level") == "high":

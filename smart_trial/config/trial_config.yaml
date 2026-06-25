@@ -79,3 +79,12 @@ logging:
   # One JSON object per line; one encounter per case (append across batch runs).
   output_file: "smart_trial/outputs/encounters.jsonl"
   format: "jsonl"
+
+# MediQ interactive layer (BasicExpert MVP). Default off — existing SMART runs unchanged.
+mediq:
+  enabled: false
+  expert_class: "BasicExpert"
+  rationale_generation: false
+  self_consistency: 1
+  stage1_suppress_answer: true
+  stage2_allow_mcq_finalize: true
