@@ -1,0 +1,71 @@
+# Groq pilot: 5 cases, MediQ + hybrid RAG, adaptive rounds (max 10+10).
+#   python run_encounter.py --config smart_trial/config/20_pilot.yaml --n 5 --seed 42
+
+trial:
+  stage1_turns: 10
+  stage2_turns: 10
+  R2_high_confidence_threshold: 0.7
+  coverage:
+    enabled: true
+    check_every: 5
+    threshold: 0.50
+    gate_mcq_finalize: true
+    stage1_min_turns: 5
+    stage2_min_turns: 3
+    r2_high_threshold: 0.50
+    summary_subdir: "coverage_summaries"
+  rounds:
+    mode: "adaptive"
+    stage1:
+      min_turns: 5
+    stage2:
+      min_turns: 3
+
+data:
+  source: "local"
+  local:
+    path: "data/all_dev_good.jsonl"
+    max_cases: null
+  red_flag_cache: "smart_trial/data/red_flag_cache.json"
+
+models:
+  patient_simulator:
+    provider: "groq"
+    model_name: "llama-3.1-8b-instant"
+    temperature: 0.3
+  doctor_agent:
+    provider: "groq"
+    model_name: "llama-3.1-8b-instant"
+    temperature: 0.5
+  judge:
+    provider: "groq"
+    model_name: "llama-3.1-8b-instant"
+    temperature: 0.1
+
+randomization:
+  seed: 42
+  stratify_by: "case_category"
+
+persona:
+  mode: "per_case_seed"
+
+rag:
+  enabled: true
+  k: 3
+  retriever_mode: "hybrid"
+  index_cache: "smart_trial/data/bm25_index.pkl"
+  contriever_cache: "smart_trial/data/contriever_embeddings.npy"
+  contriever_model: "facebook/contriever"
+  rrf_k: 60
+
+mediq:
+  enabled: true
+  expert_class: "BasicExpert"
+  rationale_generation: false
+  self_consistency: 1
+  stage1_suppress_answer: true
+  stage2_allow_mcq_finalize: true
+
+logging:
+  output_dir: "smart_trial/outputs"
+  aggregate_filename: "details.jsonl"

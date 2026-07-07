@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import yaml
 
 from smart_trial.mediq import MediQConfig, MediQSessionState, option_text_for_letter, run_basic_expert_turn
+from smart_trial.mediq.prompts import build_global_clinical_task_block
 from smart_trial.models.model_client import ModelClient
 
 
@@ -67,8 +68,8 @@ Rules:
     FINAL_TURN_INSTRUCTION = (
         "IMPORTANT: This is your final turn of the visit. Do not ask any more "
         "questions. Deliver your final assessment now, following the "
-        "'Delivering Your Final Assessment' format: line 1 must be "
-        "[CONFIDENCE: 0.XX] and the [DIAGNOSIS] line must come immediately after."
+        "'Delivering Your Final Assessment' format: put the [DIAGNOSIS] line first, "
+        "then your reasoning and management plan."
     )
 
     BASELINE_FINAL_TURN_INSTRUCTION = (
@@ -99,11 +100,11 @@ Rules:
         self.conversation_history: List[Dict[str, str]] = []
         self.current_stage = int(initial_arm_config.get("stage", 1))
         self.turn_count = 0
-        self._last_confidence: Optional[float] = None
         self._final_diagnosis: Optional[str] = None
         self._has_concluded = False
         self.mediq_state = MediQSessionState()
         self._last_mediq_meta: Optional[Dict[str, Any]] = None
+        self._allow_finalize = True
 
     @property
     def mediq_enabled(self) -> bool:
@@ -113,38 +114,45 @@ Rules:
         self.current_arm = new_arm_config
         self.current_stage = int(new_arm_config.get("stage", self.current_stage))
 
+    def set_allow_finalize(self, allow: bool) -> None:
+        self._allow_finalize = allow
+
     def respond(
         self,
         patient_message: str,
         force_conclude: bool = False,
         retrieval_context: Optional[str] = None,
-    ) -> Tuple[str, Optional[float]]:
+        *,
+        allow_finalize: Optional[bool] = None,
+    ) -> str:
+        if allow_finalize is not None:
+            self._allow_finalize = allow_finalize
         self.turn_count += 1
         if patient_message:
             self.conversation_history.append({"role": "user", "content": patient_message})
 
         if self.mediq_enabled:
-            response, confidence = self._respond_mediq(
+            response = self._respond_mediq(
                 force_conclude=force_conclude,
                 retrieval_context=retrieval_context,
             )
         else:
-            response, confidence = self._respond_legacy(
+            response = self._respond_legacy(
                 force_conclude=force_conclude,
                 retrieval_context=retrieval_context,
             )
 
         self.conversation_history.append({"role": "assistant", "content": response})
-        return response, confidence
+        return response
 
     def _respond_legacy(
         self,
         *,
         force_conclude: bool,
         retrieval_context: Optional[str],
-    ) -> Tuple[str, Optional[float]]:
+    ) -> str:
         system_prompt = self._build_system_prompt(retrieval_context)
-        if force_conclude:
+        if force_conclude or (self._allow_finalize and self._should_try_conclude_legacy()):
             final_hint = (
                 self.BASELINE_FINAL_TURN_INSTRUCTION
                 if self.current_stage == 0
@@ -155,30 +163,29 @@ Rules:
             messages=self._conversation_for_api(),
             system_prompt=system_prompt,
         )
-        confidence: Optional[float] = None
-        if self.current_stage == 2:
-            confidence, response = self._extract_confidence(response)
-            self._last_confidence = confidence
         self._check_conclusion(response)
-        return response, confidence
+        return response
+
+    def _should_try_conclude_legacy(self) -> bool:
+        return False
 
     def _respond_mediq(
         self,
         *,
         force_conclude: bool,
         retrieval_context: Optional[str],
-    ) -> Tuple[str, Optional[float]]:
+    ) -> str:
         assert self.case is not None
         arm_injection = self.current_arm.get("system_prompt_injection", "") or ""
 
         if force_conclude:
             letter = self._resolve_letter_for_finalize()
-            response, confidence = self._generate_final_assessment(
+            response = self._generate_final_assessment(
                 letter,
                 retrieval_context=retrieval_context,
             )
             self._record_mediq_shadow(letter, abstain=False, suppressed=False)
-            return response, confidence
+            return response
 
         _result, meta = run_basic_expert_turn(
             self.model,
@@ -206,23 +213,23 @@ Rules:
             and self.current_stage in (0, 2)
         )
 
-        if wants_to_finalize:
+        if wants_to_finalize and self._allow_finalize:
             letter = meta.letter_choice
             self.mediq_state.final_letter_choice = letter
-            response, confidence = self._generate_final_assessment(
+            response = self._generate_final_assessment(
                 letter,
                 retrieval_context=retrieval_context,
             )
-            return response, confidence
+            return response
+
+        if wants_to_finalize and not self._allow_finalize:
+            self._last_mediq_meta["finalize_blocked"] = "low_coverage"
+            self._last_mediq_meta["suppressed_answer"] = True
+            question = _result.atomic_question or generate_fallback_question()
+            return question
 
         question = _result.atomic_question or "Could you tell me more about your symptoms?"
-        response = question
-        confidence = None
-        if self.current_stage == 2:
-            conf_guess = max(0.0, min(1.0, float(meta.mediq_confidence)))
-            confidence = conf_guess if conf_guess > 0 else 0.5
-            self._last_confidence = confidence
-        return response, confidence
+        return question
 
     def _resolve_letter_for_finalize(self) -> Optional[str]:
         if self.mediq_state.final_letter_choice:
@@ -255,7 +262,7 @@ Rules:
         letter: Optional[str],
         *,
         retrieval_context: Optional[str] = None,
-    ) -> Tuple[str, Optional[float]]:
+    ) -> str:
         assert self.case is not None
         option_text = option_text_for_letter(self.case, letter)
         system_prompt = self._build_system_prompt(retrieval_context)
@@ -276,10 +283,8 @@ Rules:
         system_prompt = f"{system_prompt}\n\n{final_hint}{mcq_hint}"
 
         if self.model.provider == "mock":
-            conf = 0.85
             diag = option_text or "mock diagnosis"
             response = (
-                f"[CONFIDENCE: {conf:.2f}]\n"
                 f"[DIAGNOSIS] {diag}\n"
                 "Based on your symptoms, this is my working diagnosis. "
                 "Please follow up if symptoms worsen."
@@ -290,33 +295,25 @@ Rules:
                 system_prompt=system_prompt,
             )
 
-        confidence: Optional[float] = None
-        if self.current_stage == 2:
-            confidence, response = self._extract_confidence(response)
-            self._last_confidence = confidence
         self._check_conclusion(response)
         if letter:
             self.mediq_state.final_letter_choice = letter
-        return response, confidence
+        return response
 
     def _conversation_for_api(self) -> List[Dict[str, str]]:
         return [{"role": m["role"], "content": m["content"]} for m in self.conversation_history]
 
     def _build_system_prompt(self, retrieval_context: Optional[str] = None) -> str:
+        parts = [self.BASE_SYSTEM_PROMPT]
+        if self.case is not None:
+            parts.append(build_global_clinical_task_block(self.case))
         arm_instruction = self.current_arm.get("system_prompt_injection", "") or ""
-        prompt = f"{self.BASE_SYSTEM_PROMPT}\n\n{arm_instruction}"
+        if arm_instruction:
+            parts.append(arm_instruction)
+        prompt = "\n\n".join(parts)
         if retrieval_context:
             prompt += f"\n\n{retrieval_context}"
         return prompt
-
-    def _extract_confidence(self, response: str) -> Tuple[Optional[float], str]:
-        pattern = r"\[CONFIDENCE:\s*(0\.\d+|1\.0)\]"
-        match = re.search(pattern, response)
-        if match:
-            confidence = float(match.group(1))
-            clean_response = re.sub(pattern, "", response).strip()
-            return confidence, clean_response
-        return None, response
 
     def _check_conclusion(self, response: str) -> None:
         if self.CONCLUSION_MARKER in response:
@@ -362,5 +359,6 @@ Rules:
     def get_last_mediq_meta(self) -> Optional[Dict[str, Any]]:
         return self._last_mediq_meta
 
-    def get_last_confidence(self) -> Optional[float]:
-        return self._last_confidence
+
+def generate_fallback_question() -> str:
+    return "Could you tell me more about any tests or treatments you have had for this problem?"

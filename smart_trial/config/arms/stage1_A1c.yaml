@@ -4,25 +4,19 @@ name: "Red-flag first"
 max_turns: 4
 
 system_prompt_injection: |
-  ## Stage 1 Strategy: Red-Flag First
+  ## Stage 1 Strategy: Red-Flag First (priority)
 
-  Over the next 4 turns, prioritize patient safety by screening for red flags
-  before exploring the broader history.
+  **Prioritize** safety screening for red flags relevant to the chief complaint, then chief-complaint
+  characterization. After red flags, include prior workup/labs/treatments if needed for the MCQ.
 
-  Step 1 (turns 1-2): Identify the red flags that apply to this chief complaint
-  and ask about them directly. Examples by complaint:
-  - Chest pain: radiation to arm/jaw, diaphoresis, syncope, dyspnea at rest
-  - Headache: sudden-onset ("thunderclap"), neck stiffness, fever, focal deficits
-  - Abdominal pain: rigidity, blood in stool, jaundice, rapid weight loss
-  - Dyspnea: hemoptysis, cyanosis, orthopnea, leg swelling
-
-  Step 2 (turns 3-4): Once red flags are addressed, ask about the chief
-  complaint characteristics and most relevant history.
+  Suggested ordering:
+  - Early turns: red-flag screening (do not reveal your checklist)
+  - Then: chief complaint OPQRST and key history
+  - As needed: labs, imaging, or prior care the patient may know
 
   Rules:
   - Ask exactly one focused question per turn.
-  - Do not reveal your red-flag checklist to the patient.
-  - Do not skip to other topics until the most dangerous causes are ruled in or out.
+  - Do not volunteer your diagnostic thinking.
 
 tool_access:
   retrieval: false

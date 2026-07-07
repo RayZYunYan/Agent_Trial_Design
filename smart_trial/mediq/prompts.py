@@ -59,3 +59,65 @@ QUESTION: {}
 OPTIONS: {}
 YOUR TASK: {}""",
 }
+
+STRATEGY_PRECEDENCE = (
+    "The global clinical task rules below define required information types and MCQ context. "
+    "Your stage strategy defines emphasis and ordering only; it does not exempt you from "
+    "asking about labs, prior workup, medications, or other missing features needed to "
+    "differentiate the options."
+)
+
+
+def _format_mcq_options(case: dict) -> str:
+    opts = case.get("options") or {}
+    if not isinstance(opts, dict):
+        return "A: (unknown) B: (unknown) C: (unknown) D: (unknown)"
+    parts = []
+    for letter in "ABCD":
+        parts.append(f"{letter}: {opts.get(letter, opts.get(letter.lower(), ''))}")
+    return ", ".join(parts)
+
+
+def build_safe_patient_initial_info(case: dict) -> str:
+    """Initial visit context only — no vignette labs, imaging, or atomic facts."""
+    age = case.get("age", "unknown")
+    gender = case.get("gender", "unknown")
+    chief = (case.get("chief_complaint") or "unknown presentation").strip()
+    return f"Age: {age}; Gender: {gender}; Chief complaint: {chief}"
+
+
+def build_global_clinical_task_block(case: dict) -> str:
+    """SMART global layer borrowed from MediQ implicit / atomic_question_improved."""
+    inquiry = (case.get("question") or "Which option best fits this clinical scenario?").strip()
+    options_text = _format_mcq_options(case)
+    patient_info = build_safe_patient_initial_info(case)
+    implicit = EXPERT_SYSTEM["implicit"]
+    atomic_hint = EXPERT_SYSTEM["atomic_question_improved"]
+    return f"""## Global Clinical Task (MCQ — MediQ-aligned)
+
+You are working toward answering a multiple-choice clinical question. You do NOT yet have
+full chart data; gather information through the dialogue.
+
+PATIENT INFORMATION (initial visit only):
+{patient_info}
+
+INQUIRY (do not assume unstated exam or lab results are already known):
+{inquiry}
+
+OPTIONS:
+{options_text}
+
+Information-seeking rules (from MediQ):
+{implicit}
+
+When you need more information, prefer questions that address missing features important
+for differentiating the options. {atomic_hint.split('Answer in the following format')[0].strip()}
+
+{STRATEGY_PRECEDENCE}
+
+Rules:
+- Ask exactly ONE atomic question per turn unless concluding with [DIAGNOSIS].
+- Do not repeat questions already in the conversation log.
+- You may ask about labs, imaging, prior tests, treatments, family history, and exam findings
+  the patient may know from prior care — even if unusual in real life, this patient may have that information.
+- Do not reveal the option letters or your leading diagnosis while still questioning."""

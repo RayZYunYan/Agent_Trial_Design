@@ -18,6 +18,23 @@ _BASE_RULES = """Rules:
 4. Do not guess or make up information.
 5. Reply only in English, even if the doctor accidentally uses another language."""
 
+_OBJECTIVE_QUESTION_RE = re.compile(
+    r"\b("
+    r"lab|laboratory|blood\s+test|culture|imaging|x-?ray|ct\s+scan|mri|ultrasound|"
+    r"urinalysis|biopsy|ekg|ecg|glucose|creatinine|hemoglobin|wbc|platelet|"
+    r"physical\s+exam|examination\s+reveals|vital\s+signs?|blood\s+pressure|"
+    r"temperature|pulse|respiratory\s+rate|oxygen\s+saturation|"
+    r"pco2|po2|ph\b|bicarbonate|potassium|sodium|"
+    r"antibiotic|prescri|treatment\s+given|injection|iv\s+fluid"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def is_objective_clinical_question(question: str) -> bool:
+    """Heuristic: labs, vitals, exam, and treatment facts → oracle (persona bypass)."""
+    return bool(_OBJECTIVE_QUESTION_RE.search(question or ""))
+
 
 def parse_age_years(age: Any) -> Optional[int]:
     """Extract patient age in years from loader fields like '21 years old' or 21."""
@@ -245,6 +262,12 @@ Output only the numbered fact list in English:"""
             self.atomic_facts = [record[:500]] if record else ["I came to see the doctor today."]
 
     def respond(self, doctor_message: str) -> str:
+        if is_objective_clinical_question(doctor_message):
+            answer = self._respond_oracle(doctor_message)
+            self.conversation_history.append({"role": "doctor", "content": doctor_message})
+            self.conversation_history.append({"role": "patient", "content": answer})
+            return answer
+
         # Jargon short-circuit: patient asks for clarification instead of answering
         if self.persona is not None:
             term = self.persona.detects_jargon(doctor_message)
@@ -287,6 +310,39 @@ Your answer (English only):"""
         self.conversation_history.append({"role": "doctor", "content": doctor_message})
         self.conversation_history.append({"role": "patient", "content": answer})
         return answer
+
+    def _respond_oracle(self, doctor_message: str) -> str:
+        """Objective clinical data: give atomic fact content directly (bypass persona)."""
+        relevant = self._select_relevant_facts(doctor_message)
+        if not relevant:
+            if self.model.provider == "mock" and self.atomic_facts:
+                relevant = [self.atomic_facts[0]]
+            else:
+                return default_uncertain_reply(
+                    self.case, persona=None, last_reply=self._last_uncertain_reply
+                )
+        if self.model.provider == "mock":
+            return relevant[0]
+        facts_text = "\n".join(f"- {f}" for f in relevant)
+        prompt = f"""You are a clinical data oracle. The doctor asked a question about objective
+clinical information (labs, vitals, exam, or treatments). Answer using ONLY the facts below.
+State the fact clearly in plain English. Do NOT use persona quirks, evasion, or uncertainty
+if the facts contain the answer.
+
+Facts:
+{facts_text}
+
+Doctor's question: {doctor_message}
+
+Your answer (English only):"""
+        return self.model.chat(
+            [{"role": "user", "content": prompt}],
+            system_prompt=(
+                "You relay exact clinical facts from the chart. Be direct and factual. "
+                "Ignore personality instructions."
+            ),
+            temperature=0.1,
+        )
 
     def _select_relevant_facts(self, question: str) -> List[str]:
         if not self.atomic_facts:

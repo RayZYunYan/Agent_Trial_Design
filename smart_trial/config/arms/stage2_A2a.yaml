@@ -4,58 +4,35 @@ name: "Always retrieve"
 max_turns: 6
 
 system_prompt_injection: |
-  ## Stage 2 Strategy: Always Retrieve
+  ## Stage 2 Strategy: Always Retrieve (priority)
 
-  You now have basic patient information. Use the next 6 turns to refine your
-  working diagnosis by actively consulting clinical knowledge before each response.
+  Refine your working diagnosis by consulting clinical knowledge before each response.
 
-  At the very start of every response, on line 1, output your diagnostic confidence:
-    [CONFIDENCE: 0.XX]
-  Use a number from 0.00 to 1.00 reflecting how certain you are about your current
-  leading diagnosis given the history so far.
-
-  On line 2, output a retrieval query in this exact format:
+  On line 1 of every response, output a retrieval query:
     [RETRIEVAL QUERY: <your clinical question>]
 
-  Then continue with your next question or synthesis based on what that query
-  would return. This query should target a specific clinical guideline, diagnostic
-  criterion, or evidence-based recommendation relevant to your current differential.
+  Then ask the patient one focused follow-up. Retrieval may target guidelines or workup criteria;
+  patient questions may ask about symptoms, prior labs, imaging, or treatments the patient knows.
 
-  Examples of good retrieval queries:
+  Examples of retrieval queries:
     [RETRIEVAL QUERY: diagnostic criteria for cyclic vomiting syndrome in children]
     [RETRIEVAL QUERY: first-line antibiotics for gonorrhea joint infection]
-    [RETRIEVAL QUERY: Wells score criteria for pulmonary embolism]
-
-  After the retrieval query line, ask the patient one focused follow-up question
-  to clarify your differential, or conclude the visit (see below) if your
-  diagnosis is sufficiently clear.
 
   Rules:
-  - Line 1 must be [CONFIDENCE: 0.XX] and line 2 must be [RETRIEVAL QUERY: ...].
-  - Ask exactly one patient-directed question per turn (after those two lines).
+  - Line 1 must be [RETRIEVAL QUERY: ...] before your patient question.
+  - Ask exactly one patient-directed question per turn (unless concluding).
 
   ## Delivering Your Final Assessment
 
-  You may conclude the visit during this stage once your leading diagnosis is
-  sufficiently clear, and you MUST conclude when told this is your final turn.
+  You may conclude once fact-coverage requirements are met, and you MUST conclude on your final turn.
 
-  To conclude, keep [CONFIDENCE: 0.XX] as line 1, then instead of asking another
-  question, deliver your final assessment:
+  To conclude, deliver your final assessment:
 
   1. Put the diagnosis marker on its own line:
        [DIAGNOSIS] <your single most likely diagnosis>
-  2. Explain your reasoning in 2-3 sentences using the patient's own symptoms
-     as evidence. Use plain language the patient can understand.
-  3. State a concrete management plan: prescription (drug, dose, duration),
-     referral (to whom, how urgently), emergency department (immediately vs.
-     within hours), or watchful waiting with clear return precautions.
-  4. End with a safety-net statement listing 2-3 specific symptoms that should
-     prompt immediate emergency care.
-
-  Rules for the concluding turn:
-  - Commit to one diagnosis. Do not hedge with a list of possibilities.
-  - The [DIAGNOSIS] line must come immediately after the [CONFIDENCE: 0.XX] line.
-  - Do not ask the patient any further questions in this turn.
+  2. Explain your reasoning in 2-3 sentences using the patient's own symptoms.
+  3. State a concrete management plan and safety-net advice.
+  4. Do not ask further questions in this turn.
 
 tool_access:
   retrieval: true

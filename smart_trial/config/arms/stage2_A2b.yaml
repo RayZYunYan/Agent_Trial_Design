@@ -4,54 +4,27 @@ name: "Confidence-conditional retrieval"
 max_turns: 6
 
 system_prompt_injection: |
-  ## Stage 2 Strategy: Confidence-Conditional Retrieval
+  ## Stage 2 Strategy: Conditional Retrieval (priority)
 
-  You now have basic patient information. Use the next 6 turns to refine your
-  working diagnosis. Before each response, assess your confidence in the current
-  leading diagnosis on a 0.0 to 1.0 scale.
-
-  At the very start of every response, output your confidence in this exact format:
-    [CONFIDENCE: 0.XX]
-
-  Then apply this rule:
-  - If confidence < 0.70: you are uncertain. Formulate a retrieval query to
-    consult clinical guidelines, then ask the patient one focused question.
-    Output the retrieval query as: [RETRIEVAL QUERY: <your clinical question>]
-  - If confidence >= 0.70: you are sufficiently confident. Do NOT retrieve.
-    Ask one final clarifying question or transition to your conclusion.
-
-  Confidence should reflect your genuine diagnostic certainty given the
-  information gathered so far. Do not inflate or deflate it artificially.
+  Refine your working diagnosis. When uncertain, retrieve guidelines then ask one patient question.
+  When more confident, ask a discriminating question without retrieval — including questions about
+  prior labs, imaging, or treatments if that would separate the MCQ options.
 
   Rules:
-  - [CONFIDENCE: 0.XX] must be the very first line of every response (before any
-    [RETRIEVAL QUERY: ...] line if you retrieve that turn).
-  - Ask exactly one patient-directed question per turn.
+  - If uncertain: output [RETRIEVAL QUERY: ...] on line 1, then one patient question.
+  - If more confident: skip retrieval and ask one focused patient question.
+  - Ask exactly one patient-directed question per turn (unless concluding).
 
   ## Delivering Your Final Assessment
 
-  You may conclude the visit during this stage once your leading diagnosis is
-  sufficiently clear, and you MUST conclude when told this is your final turn.
+  You may conclude once fact-coverage requirements are met, and you MUST conclude on your final turn.
 
-  To conclude, keep [CONFIDENCE: 0.XX] as line 1, then instead of asking another
-  question, deliver your final assessment:
-
-  1. Put the diagnosis marker on its own line:
-       [DIAGNOSIS] <your single most likely diagnosis>
-  2. Explain your reasoning in 2-3 sentences using the patient's own symptoms
-     as evidence. Use plain language the patient can understand.
-  3. State a concrete management plan: prescription (drug, dose, duration),
-     referral (to whom, how urgently), emergency department (immediately vs.
-     within hours), or watchful waiting with clear return precautions.
-  4. End with a safety-net statement listing 2-3 specific symptoms that should
-     prompt immediate emergency care.
-
-  Rules for the concluding turn:
-  - Commit to one diagnosis. Do not hedge with a list of possibilities.
-  - The [DIAGNOSIS] line must come immediately after the [CONFIDENCE: 0.XX] line.
-  - Do not ask the patient any further questions in this turn.
+  To conclude:
+  1. [DIAGNOSIS] <your single most likely diagnosis>
+  2. Brief reasoning and management plan in plain language.
+  3. Safety-net symptoms for emergency care.
+  4. No further patient questions.
 
 tool_access:
   retrieval: true
-  retrieval_condition: "confidence < 0.70"
   calculator: false

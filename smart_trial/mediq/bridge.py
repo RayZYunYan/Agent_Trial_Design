@@ -10,6 +10,7 @@ from smart_trial.mediq.abstention import (
     implicit_abstention_decision,
 )
 from smart_trial.mediq.config import MediQConfig
+from smart_trial.mediq.prompts import build_global_clinical_task_block, build_safe_patient_initial_info
 
 
 @dataclass
@@ -52,7 +53,7 @@ def build_patient_state(
     case: Dict[str, Any],
     conversation_history: List[Dict[str, str]],
 ) -> Dict[str, Any]:
-    initial = (case.get("chief_complaint") or "").strip() or "Unknown presentation"
+    initial = build_safe_patient_initial_info(case)
     return {
         "initial_info": initial,
         "interaction_history": build_interaction_history(conversation_history),
@@ -90,6 +91,7 @@ def run_basic_expert_turn(
     options = normalize_options(case)
     if not options:
         options = {"A": "", "B": "", "C": "", "D": ""}
+    global_block = build_global_clinical_task_block(case)
 
     result = implicit_abstention_decision(
         model,
@@ -99,6 +101,7 @@ def run_basic_expert_turn(
         rationale_generation=mediq_config.rationale_generation,
         self_consistency=mediq_config.self_consistency,
         arm_system_injection=arm_system_injection,
+        global_clinical_block=global_block,
         turn_index=turn_index,
     )
 
@@ -119,6 +122,7 @@ def run_basic_expert_turn(
                 inquiry=inquiry,
                 options_dict=options,
                 arm_system_injection=arm_system_injection,
+                global_clinical_block=global_block,
             )
 
     meta = MediQTurnMeta(

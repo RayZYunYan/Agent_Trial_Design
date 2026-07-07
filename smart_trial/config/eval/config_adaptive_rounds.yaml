@@ -1,5 +1,4 @@
-# Adaptive dialogue rounds: early Stage 1 exit on R1 responder; early Stage 2
-# diagnosis when confidence >= early_diagnosis_confidence (consecutive turns).
+# Adaptive dialogue rounds: early Stage 1/2 exit on fact coverage threshold.
 # Compare with config_grid.yaml (rounds.mode: fixed) on the same cohort.
 #
 # python -m smart_trial.run_eval --config smart_trial/config/eval/config_adaptive_rounds.yaml
@@ -14,19 +13,21 @@ eval:
 trial:
   stage1_turns: 4
   stage2_turns: 6
-  R1_responder_threshold: 6
   R2_high_confidence_threshold: 0.7
-  early_diagnosis_confidence: 0.80
+  coverage:
+    enabled: true
+    check_every: 5
+    threshold: 0.50
+    gate_mcq_finalize: true
+    stage1_min_turns: 5
+    stage2_min_turns: 3
+    r2_high_threshold: 0.50
   rounds:
     mode: "adaptive"
     stage1:
-      min_turns: 2
-      check_every: 1
-      red_flags_min: 1
+      min_turns: 5
     stage2:
-      min_turns: 2
-      consecutive_high: 2
-      auto_conclude: true
+      min_turns: 3
 
 data:
   source: local

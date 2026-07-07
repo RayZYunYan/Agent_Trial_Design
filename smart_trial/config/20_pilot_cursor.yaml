@@ -1,0 +1,76 @@
+# Cursor SDK pilot: re-run medqa_0002..0004 (MediQ + hybrid RAG + adaptive 10+10).
+#   python run_encounter.py --config smart_trial/config/20_pilot_cursor.yaml --case_id medqa_0002 --seed 42
+
+trial:
+  stage1_turns: 10
+  stage2_turns: 10
+  R1_responder_threshold: 6
+  R2_high_confidence_threshold: 0.7
+  coverage:
+    enabled: true
+    check_every: 5
+    threshold: 0.50
+    gate_mcq_finalize: true
+    stage1_min_turns: 5
+    stage2_min_turns: 3
+    r2_high_threshold: 0.50
+    summary_subdir: "coverage_summaries"
+  rounds:
+    mode: "adaptive"
+    stage1:
+      min_turns: 5
+      check_every: 1
+      red_flags_min: 1
+    stage2:
+      min_turns: 3
+      consecutive_high: 2
+      auto_conclude: true
+
+data:
+  source: "local"
+  local:
+    path: "data/all_dev_good.jsonl"
+    max_cases: null
+  red_flag_cache: "smart_trial/data/red_flag_cache.json"
+
+models:
+  patient_simulator:
+    provider: "cursor_sdk"
+    model_name: "composer-2.5"
+    temperature: 0.3
+  doctor_agent:
+    provider: "cursor_sdk"
+    model_name: "composer-2.5"
+    temperature: 0.5
+  judge:
+    provider: "cursor_sdk"
+    model_name: "composer-2.5"
+    temperature: 0.1
+
+randomization:
+  seed: 42
+  stratify_by: "case_category"
+
+persona:
+  mode: "per_case_seed"
+
+rag:
+  enabled: true
+  k: 3
+  retriever_mode: "hybrid"
+  index_cache: "smart_trial/data/bm25_index.pkl"
+  contriever_cache: "smart_trial/data/contriever_embeddings.npy"
+  contriever_model: "facebook/contriever"
+  rrf_k: 60
+
+mediq:
+  enabled: true
+  expert_class: "BasicExpert"
+  rationale_generation: false
+  self_consistency: 1
+  stage1_suppress_answer: true
+  stage2_allow_mcq_finalize: true
+
+logging:
+  output_dir: "smart_trial/outputs/20_pilot"
+  aggregate_filename: "20_pilot_cursor_encounters.jsonl"

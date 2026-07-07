@@ -45,3 +45,66 @@ def test_evaluate_outcome_red_flag_miss():
     assert "diag_correct" in outcome
     assert "red_flag_miss" in outcome
     assert outcome["red_flag_miss"] is True
+
+
+def test_sanitize_coverage_delta_rejects_bad_evidence():
+    judge = StageJudge(ModelClient("mock", "mock"))
+    atomic_facts = ["fever", "blood culture positive", "joint swelling"]
+    conversation = [
+        {"role": "assistant", "content": "Any fever?"},
+        {"role": "user", "content": "Yes, I have had a fever for two days."},
+    ]
+    parsed = {
+        "newly_covered": [
+            {
+                "index": 1,
+                "fact": "fever",
+                "patient_evidence": "Yes, I have had a fever for two days.",
+            },
+            {
+                "index": 2,
+                "fact": "blood culture positive",
+                "patient_evidence": "my knee is swollen",
+            },
+            {
+                "index": 3,
+                "fact": "joint swelling",
+                "patient_evidence": "not sure",
+            },
+            {
+                "index": 1,
+                "fact": "fever",
+                "patient_evidence": "duplicate index",
+            },
+        ]
+    }
+    result = judge._sanitize_coverage_delta(
+        parsed,
+        atomic_facts,
+        covered_set=set(),
+        new_conversation=conversation,
+    )
+    assert len(result["newly_covered"]) == 1
+    assert result["newly_covered"][0]["index"] == 1
+
+
+def test_sanitize_coverage_delta_requires_patient_quote():
+    judge = StageJudge(ModelClient("mock", "mock"))
+    atomic_facts = ["elevated WBC"]
+    conversation = [{"role": "user", "content": "My white count was high on labs."}]
+    parsed = {
+        "newly_covered": [
+            {
+                "index": 1,
+                "fact": "elevated WBC",
+                "patient_evidence": "culture grew staph",
+            }
+        ]
+    }
+    result = judge._sanitize_coverage_delta(
+        parsed,
+        atomic_facts,
+        covered_set=set(),
+        new_conversation=conversation,
+    )
+    assert result["newly_covered"] == []

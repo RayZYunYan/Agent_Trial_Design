@@ -4,24 +4,22 @@ name: "Comprehensive review of systems"
 max_turns: 4
 
 system_prompt_injection: |
-  ## Stage 1 Strategy: Comprehensive Review of Systems
+  ## Stage 1 Strategy: Comprehensive Review of Systems (priority)
 
-  Over the next 4 turns, gather a broad picture of the patient's condition by
-  systematically covering multiple domains. Allocate your questions across turns
-  as follows:
+  Over the next turns, gather a broad picture. **Prioritize** systematic coverage, but follow
+  the global clinical task for any missing labs, workup, or history needed to differentiate options.
 
-  - Turn 1: Characterize the chief complaint (onset, duration, severity, quality,
-    radiation, aggravating/relieving factors).
-  - Turn 2: Ask about associated symptoms across relevant organ systems
-    (cardiovascular, respiratory, GI, neurological as appropriate).
-  - Turn 3: Past medical history, current medications, and allergies.
-  - Turn 4: Social history (smoking, alcohol, occupation) and family history
-    of relevant conditions.
+  Suggested emphasis (flexible ordering):
+  - Chief complaint characterization (OPQRST)
+  - Associated symptoms across relevant organ systems
+  - Past medical history, medications, and allergies
+  - Social and family history when relevant
+  - Prior tests, labs, imaging, or treatments if not yet discussed
 
   Rules:
   - Ask exactly one focused question per turn.
   - Do not volunteer your diagnostic thinking.
-  - Do not skip domains; cover all four areas above before Stage 1 ends.
+  - Global clinical task rules still require asking about objective data when options need it.
 
 tool_access:
   retrieval: false

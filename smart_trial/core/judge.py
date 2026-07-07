@@ -94,6 +94,54 @@ Stage 2 transcript:
 Reply with ONLY valid JSON in one line, no markdown fences:
 {{"confidence": <float between 0 and 1>}}"""
 
+    FACT_COVERAGE_INCREMENTAL_PROMPT = """You are evaluating which atomic clinical facts have been substantively elicited from the patient in a doctor-patient dialogue.
+
+Chief complaint (context only): {chief_complaint}
+
+Numbered atomic facts for this case (the patient may know all of these):
+{facts_numbered}
+
+Facts already marked covered (indices — NEVER remove or downgrade these):
+{already_covered}
+
+{conversation_section}
+
+Task: Among facts NOT in "already covered", decide which are NOW substantively conveyed by the patient's answers in the conversation section above.
+
+Count a fact as newly covered only if ALL of the following hold:
+- The patient's words semantically match the specific atomic fact (paraphrases OK, e.g. "I feel feverish" covers "temperature is elevated").
+- The patient gave real, case-specific information — not "not sure", "I don't know", refusal, or a non-answer.
+- You can quote patient_evidence that appears in a Patient line in the conversation section (verbatim or near-verbatim substring).
+- The evidence directly supports THIS fact index — do not match labs/imaging/culture results to unrelated symptom answers.
+- Do not infer unstated objective data (e.g. culture positive, imaging findings) unless the patient explicitly said it.
+
+Strict rules:
+- patient_evidence MUST come from Patient dialogue in the conversation section (not doctor lines).
+- Each index may appear at most once in newly_covered.
+- When uncertain, omit the fact (prefer under-counting over false positives).
+
+For each newly covered fact, cite a short patient_evidence quote from the dialogue.
+
+Output STRICTLY valid JSON only, no markdown fences:
+{{
+  "newly_covered": [
+    {{"index": <1-based int>, "fact": "<atomic fact text>", "patient_evidence": "<patient quote>"}}
+  ]
+}}"""
+
+    _EVASIVE_PHRASES = (
+        "not sure",
+        "don't know",
+        "do not know",
+        "i'm not sure",
+        "no idea",
+        "can't say",
+        "cannot say",
+        "unsure",
+        "unclear",
+        "no answer",
+    )
+
     def __init__(
         self,
         model_client: ModelClient,
@@ -148,6 +196,168 @@ Reply with ONLY valid JSON in one line, no markdown fences:
         parsed["total"] = total
         parsed["responder"] = bool(parsed.get("responder", total >= self.r1_responder_threshold))
         return parsed
+
+    def probe_fact_coverage_incremental(
+        self,
+        case: Dict[str, Any],
+        *,
+        new_conversation: List[Dict[str, Any]],
+        atomic_facts: List[str],
+        already_covered: List[int],
+        review_mode: bool = False,
+    ) -> Dict[str, Any]:
+        """Judge only *new* dialogue (or full history in review_mode) for additional covered facts."""
+        if not atomic_facts:
+            return {"newly_covered": []}
+
+        covered_set = set(int(i) for i in already_covered)
+        if self.model.provider == "mock" or not new_conversation:
+            return self._mock_coverage_delta(
+                new_conversation,
+                atomic_facts,
+                covered_set,
+                review_mode=review_mode,
+            )
+
+        facts_numbered = "\n".join(f"{i}. {f}" for i, f in enumerate(atomic_facts, start=1))
+        conv_label = "Full conversation to review:" if review_mode else "NEW conversation since last coverage check:"
+        conv_text = self._format_conversation(new_conversation)
+        prompt = self.FACT_COVERAGE_INCREMENTAL_PROMPT.format(
+            chief_complaint=case.get("chief_complaint", "unknown"),
+            facts_numbered=facts_numbered,
+            already_covered=already_covered or [],
+            conversation_section=f"{conv_label}\n{conv_text}",
+        )
+        response = self.model.chat([{"role": "user", "content": prompt}], temperature=0.1)
+        parsed = self._parse_json_response(response, default={"newly_covered": []})
+        return self._sanitize_coverage_delta(
+            parsed,
+            atomic_facts,
+            covered_set,
+            new_conversation=new_conversation,
+        )
+
+    @staticmethod
+    def _mock_coverage_delta(
+        new_conversation: List[Dict[str, Any]],
+        atomic_facts: List[str],
+        covered_set: set,
+        *,
+        review_mode: bool,
+    ) -> Dict[str, Any]:
+        """Deterministic mock: each patient reply may cover one new fact."""
+        patient_turns = sum(1 for m in new_conversation if m.get("role") == "user")
+        newly: List[Dict[str, Any]] = []
+        for idx in range(1, len(atomic_facts) + 1):
+            if idx in covered_set:
+                continue
+            if patient_turns <= 0:
+                break
+            patient_turns -= 1
+            newly.append(
+                {
+                    "index": idx,
+                    "fact": atomic_facts[idx - 1],
+                    "patient_evidence": "mock patient reply",
+                }
+            )
+        if review_mode and not newly and len(covered_set) < len(atomic_facts):
+            idx = len(covered_set) + 1
+            if idx <= len(atomic_facts):
+                newly.append(
+                    {
+                        "index": idx,
+                        "fact": atomic_facts[idx - 1],
+                        "patient_evidence": "mock final audit",
+                    }
+                )
+        return {"newly_covered": newly}
+
+    def _sanitize_coverage_delta(
+        self,
+        parsed: Dict[str, Any],
+        atomic_facts: List[str],
+        covered_set: set,
+        *,
+        new_conversation: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        clean: List[Dict[str, Any]] = []
+        seen_indices: set = set()
+        for item in parsed.get("newly_covered") or []:
+            try:
+                idx = int(item.get("index"))
+            except (TypeError, ValueError):
+                continue
+            if idx in covered_set or idx in seen_indices or idx < 1 or idx > len(atomic_facts):
+                continue
+            evidence = str(item.get("patient_evidence") or "").strip()
+            if not evidence or len(evidence) < 6:
+                continue
+            if self._is_evasive_evidence(evidence):
+                continue
+            if new_conversation and not self._evidence_in_patient_dialogue(evidence, new_conversation):
+                continue
+            seen_indices.add(idx)
+            clean.append(
+                {
+                    "index": idx,
+                    "fact": str(item.get("fact") or atomic_facts[idx - 1]),
+                    "patient_evidence": evidence,
+                }
+            )
+        return {"newly_covered": clean}
+
+    def _is_evasive_evidence(self, evidence: str) -> bool:
+        low = evidence.lower()
+        return any(phrase in low for phrase in self._EVASIVE_PHRASES)
+
+    @staticmethod
+    def _patient_messages_text(conversation: List[Dict[str, Any]]) -> str:
+        return "\n".join(
+            (msg.get("content") or "").strip()
+            for msg in conversation
+            if msg.get("role") == "user" and (msg.get("content") or "").strip()
+        )
+
+    def _evidence_in_patient_dialogue(
+        self,
+        evidence: str,
+        conversation: List[Dict[str, Any]],
+    ) -> bool:
+        patient_text = self._patient_messages_text(conversation)
+        if not patient_text:
+            return False
+        ev_norm = " ".join(evidence.lower().split())
+        patient_norm = " ".join(patient_text.lower().split())
+        if ev_norm in patient_norm:
+            return True
+        words = [w for w in re.findall(r"\w+", ev_norm) if len(w) > 2]
+        if not words:
+            return False
+        matched = sum(1 for w in words if w in patient_norm)
+        return matched / len(words) >= 0.6
+
+    def compute_R2_from_coverage(
+        self,
+        coverage_rate: float,
+        *,
+        high_threshold: float,
+        coverage_count: int = 0,
+        total_facts: int = 0,
+    ) -> Dict[str, Any]:
+        rate = max(0.0, min(1.0, float(coverage_rate)))
+        is_high = rate >= high_threshold
+        return {
+            "final_confidence": rate,
+            "avg_confidence": rate,
+            "confidence_level": "high" if is_high else "low",
+            "confidence_scores": [],
+            "coverage_rate": rate,
+            "coverage_count": coverage_count,
+            "total_facts": total_facts,
+            "R2_category": None,
+            "r2_source": "fact_coverage",
+        }
 
     def compute_R2(
         self,

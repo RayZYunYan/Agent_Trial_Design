@@ -4,52 +4,29 @@ name: "Parametric only"
 max_turns: 6
 
 system_prompt_injection: |
-  ## Stage 2 Strategy: Parametric Only
+  ## Stage 2 Strategy: Parametric Only (priority)
 
-  You now have basic patient information. Use the next 6 turns to refine your
-  working diagnosis using only the conversation history and your medical knowledge.
-  Do not consult external references or clinical guidelines.
+  Refine your working diagnosis using conversation history and medical knowledge only — no retrieval.
 
-  At the very start of every response, on line 1, output your diagnostic confidence:
-    [CONFIDENCE: 0.XX]
-  Use 0.00–1.00 for how certain you are about your current leading diagnosis.
-
-  In each turn after that line:
-  1. Mentally update your differential diagnosis based on everything gathered so far.
-  2. Identify the single most informative question that would best discriminate
-     between your top two competing diagnoses.
-  3. Ask that question.
-
-  As your differential narrows, your questions should become increasingly specific.
-  By the end of Stage 2, you should have a clear leading diagnosis.
+  Each turn:
+  1. Update your differential mentally.
+  2. Ask the single most informative atomic question — symptoms, history, or prior labs/workup
+     that would discriminate your top options.
+  3. Do not reveal your differential to the patient.
 
   Rules:
-  - Line 1 must always be [CONFIDENCE: 0.XX]. Do not use [RETRIEVAL QUERY: ...] markers.
-  - Ask exactly one patient-directed question per turn.
-  - Do not reveal your differential to the patient.
+  - Do not use [RETRIEVAL QUERY: ...] markers.
+  - Ask exactly one patient-directed question per turn (unless concluding).
 
   ## Delivering Your Final Assessment
 
-  You may conclude the visit during this stage once your leading diagnosis is
-  sufficiently clear, and you MUST conclude when told this is your final turn.
+  You may conclude once fact-coverage requirements are met, and you MUST conclude on your final turn.
 
-  To conclude, keep [CONFIDENCE: 0.XX] as line 1, then instead of asking another
-  question, deliver your final assessment:
-
-  1. Put the diagnosis marker on its own line:
-       [DIAGNOSIS] <your single most likely diagnosis>
-  2. Explain your reasoning in 2-3 sentences using the patient's own symptoms
-     as evidence. Use plain language the patient can understand.
-  3. State a concrete management plan: prescription (drug, dose, duration),
-     referral (to whom, how urgently), emergency department (immediately vs.
-     within hours), or watchful waiting with clear return precautions.
-  4. End with a safety-net statement listing 2-3 specific symptoms that should
-     prompt immediate emergency care.
-
-  Rules for the concluding turn:
-  - Commit to one diagnosis. Do not hedge with a list of possibilities.
-  - The [DIAGNOSIS] line must come immediately after the [CONFIDENCE: 0.XX] line.
-  - Do not ask the patient any further questions in this turn.
+  To conclude:
+  1. [DIAGNOSIS] <your single most likely diagnosis>
+  2. Brief reasoning and management plan.
+  3. Safety-net advice.
+  4. No further patient questions.
 
 tool_access:
   retrieval: false

@@ -34,6 +34,23 @@ def _conv_log(interaction_history: List[Dict[str, str]]) -> str:
     return "\n".join(lines)
 
 
+def _compose_system_prompt(
+    *,
+    arm_system_injection: str = "",
+    global_clinical_block: str = "",
+) -> str:
+    """MediQ base + SMART global clinical task + arm strategy (same order as doctor_agent)."""
+    system = prompts.EXPERT_SYSTEM["meditron_system_msg"]
+    parts: List[str] = []
+    if global_clinical_block.strip():
+        parts.append(global_clinical_block.strip())
+    if arm_system_injection.strip():
+        parts.append(arm_system_injection.strip())
+    if parts:
+        system = f"{system}\n\n" + "\n\n".join(parts)
+    return system
+
+
 def _call_model(
     model: ModelClient,
     system: str,
@@ -76,6 +93,7 @@ def implicit_abstention_decision(
     rationale_generation: bool = False,
     self_consistency: int = 1,
     arm_system_injection: str = "",
+    global_clinical_block: str = "",
     turn_index: int = 1,
 ) -> ImplicitAbstainResult:
     if model.provider == "mock":
@@ -93,9 +111,10 @@ def implicit_abstention_decision(
         options_text,
         abstain_task,
     )
-    system = prompts.EXPERT_SYSTEM["meditron_system_msg"]
-    if arm_system_injection.strip():
-        system = f"{system}\n\n{arm_system_injection.strip()}"
+    system = _compose_system_prompt(
+        arm_system_injection=arm_system_injection,
+        global_clinical_block=global_clinical_block,
+    )
 
     answers: List[str] = []
     questions: List[str] = []
@@ -144,7 +163,14 @@ def implicit_abstention_decision(
         letter_choice = None
 
     if letter_choice is None:
-        letter_choice = _forced_choice(model, patient_state, inquiry, options_dict, arm_system_injection)
+        letter_choice = _forced_choice(
+            model,
+            patient_state,
+            inquiry,
+            options_dict,
+            arm_system_injection,
+            global_clinical_block,
+        )
 
     return ImplicitAbstainResult(
         abstain=abstain,
@@ -161,6 +187,7 @@ def _forced_choice(
     inquiry: str,
     options_dict: Dict[str, str],
     arm_system_injection: str,
+    global_clinical_block: str = "",
 ) -> Optional[str]:
     """Shadow MCQ choice when the model asked a question (MediQ second step)."""
     if model.provider == "mock":
@@ -175,9 +202,10 @@ def _forced_choice(
         options_text,
         prompts.EXPERT_SYSTEM["answer"],
     )
-    system = prompts.EXPERT_SYSTEM["meditron_system_msg"]
-    if arm_system_injection.strip():
-        system = f"{system}\n\n{arm_system_injection.strip()}"
+    system = _compose_system_prompt(
+        arm_system_injection=arm_system_injection,
+        global_clinical_block=global_clinical_block,
+    )
     response_text = _call_model(model, system, user_prompt, temperature=0.1)
     return parsing.parse_choice(response_text or "", options_dict)
 
@@ -189,6 +217,7 @@ def generate_atomic_question(
     inquiry: str,
     options_dict: Dict[str, str],
     arm_system_injection: str = "",
+    global_clinical_block: str = "",
 ) -> str:
     """Fallback question when implicit abstain chose a letter but Stage 1 suppresses answer."""
     if model.provider == "mock":
@@ -203,9 +232,10 @@ def generate_atomic_question(
         options_text,
         prompts.EXPERT_SYSTEM["atomic_question_improved"],
     )
-    system = prompts.EXPERT_SYSTEM["meditron_system_msg"]
-    if arm_system_injection.strip():
-        system = f"{system}\n\n{arm_system_injection.strip()}"
+    system = _compose_system_prompt(
+        arm_system_injection=arm_system_injection,
+        global_clinical_block=global_clinical_block,
+    )
     response_text = _call_model(model, system, user_prompt)
     atomic = parsing.parse_atomic_question(response_text or "")
     if atomic:

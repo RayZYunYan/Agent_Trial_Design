@@ -4,22 +4,14 @@ name: "Focused chief-complaint"
 max_turns: 4
 
 system_prompt_injection: |
-  ## Stage 1 Strategy: Focused Chief-Complaint
+  ## Stage 1 Strategy: Chief-Complaint First (priority)
 
-  Over the next 4 turns, stay tightly focused on the chief complaint. Do not
-  expand to unrelated organ systems.
+  **Prioritize** OPQRST and symptoms directly tied to the chief complaint before broader ROS.
+  Do not skip global requirements: if MCQ options need labs, prior workup, PMH, or meds, ask those
+  once chief-complaint gaps are addressed.
 
-  Use OPQRST to fully characterize the chief complaint:
-  - Onset: when and how it started
-  - Provocation / Palliation: what makes it better or worse
-  - Quality: character of the symptom (sharp, dull, burning, etc.)
-  - Radiation / Region: location and spread
-  - Severity: how bad on a 0-10 scale
-  - Timing: constant vs. intermittent, frequency, duration of episodes
-
-  Ask only about symptoms or history that are directly relevant to the
-  chief complaint. If the patient mentions a new concern, acknowledge it
-  briefly but redirect to the primary issue.
+  OPQRST emphasis:
+  - Onset, Provocation/Palliation, Quality, Radiation/Region, Severity, Timing
 
   Rules:
   - Ask exactly one focused question per turn.

@@ -6,6 +6,12 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
+from smart_trial.core.coverage import (
+    CoverageSession,
+    coverage_to_r1_snapshot,
+    parse_coverage_config,
+    write_coverage_summary,
+)
 from smart_trial.core.doctor_agent import DoctorAgent, load_arm_config
 from smart_trial.mediq import MediQConfig
 from smart_trial.core.judge import StageJudge
@@ -56,21 +62,18 @@ def _parse_rounds_config(trial_cfg: Dict[str, Any]) -> Dict[str, Any]:
         "stage1_check_every": max(1, int(stage1.get("check_every", 1))),
         "stage1_red_flags_min": red_flags_min,
         "stage2_min_turns": int(stage2.get("min_turns", 2)),
-        "stage2_consecutive_high": max(1, int(stage2.get("consecutive_high", 2))),
-        "stage2_auto_conclude": bool(stage2.get("auto_conclude", True)),
-        "early_diagnosis_confidence": float(trial_cfg.get("early_diagnosis_confidence", 0.80)),
     }
 
 
-def _r1_allows_early_stop(r1: Dict[str, Any], red_flags_min: Optional[int]) -> bool:
-    if not r1.get("responder"):
+def _coverage_allows_early_stop(
+    coverage: CoverageSession,
+    *,
+    min_turns_met: bool,
+    threshold: float,
+) -> bool:
+    if not min_turns_met:
         return False
-    if red_flags_min is None:
-        return True
-    try:
-        return int(r1.get("red_flags", 0)) >= red_flags_min
-    except (TypeError, ValueError):
-        return False
+    return coverage.coverage_rate >= threshold
 
 
 class TrialOrchestrator:
@@ -239,8 +242,61 @@ class TrialOrchestrator:
             return PatientPersona.sample(case_rng)
         return self._resolve_persona(case, random.Random(seed))
 
+    def _parse_coverage_config(self) -> Dict[str, Any]:
+        return parse_coverage_config(self.config.get("trial") or {})
+
     def _parse_rounds_config(self) -> Dict[str, Any]:
         return _parse_rounds_config(self.config.get("trial") or {})
+
+    def _finalize_coverage(
+        self,
+        logger: TrajectoryLogger,
+        coverage: CoverageSession,
+        doctor: DoctorAgent,
+        cov_cfg: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        final = coverage.final_audit(doctor.conversation_history)
+        snap = coverage_to_r1_snapshot(final, cov_cfg["threshold"])
+        logger._current["final_coverage_rate"] = snap["coverage_rate"]
+        logger._current["final_coverage_count"] = snap["coverage_count"]
+        logger._current["final_coverage_total"] = snap["total_facts"]
+        logger._current["covered_facts"] = snap.get("covered_facts") or []
+        enc_id = logger._current.get("encounter_id", "enc")
+        if self._output_dir is not None:
+            out_dir = Path(self._output_dir)
+        elif self._output_file is not None:
+            out_dir = Path(self._output_file).parent
+        else:
+            out_dir = None
+        summary_path = write_coverage_summary(
+            out_dir,
+            logger._current.get("case_id", "case"),
+            enc_id,
+            snap,
+            subdir=cov_cfg.get("summary_subdir", "coverage_summaries"),
+        )
+        if summary_path:
+            logger._current["coverage_summary_file"] = str(summary_path)
+        return snap
+
+    def _doctor_allow_finalize(
+        self,
+        coverage: CoverageSession,
+        cov_cfg: Dict[str, Any],
+        *,
+        stage_turn_idx: int,
+        stage_min_turns: int,
+        force_conclude: bool,
+    ) -> bool:
+        if force_conclude:
+            return True
+        if not cov_cfg.get("enabled", True):
+            return True
+        if not cov_cfg.get("gate_mcq_finalize", True):
+            return True
+        if stage_turn_idx < stage_min_turns:
+            return False
+        return coverage.meets_threshold()
 
     def _mediq_config(self) -> MediQConfig:
         return MediQConfig.from_dict(self.config.get("mediq"))
@@ -361,6 +417,15 @@ class TrialOrchestrator:
         doctor = self._make_doctor(dict(DoctorAgent.BASELINE_ARM_CONFIG), case)
         patient = PatientAgent(self.patient_model, case, persona=persona)
 
+        cov_cfg = self._parse_coverage_config()
+        coverage = CoverageSession(
+            self.judge,
+            case,
+            threshold=cov_cfg["threshold"],
+            check_every=cov_cfg["check_every"],
+        )
+        baseline_min = cov_cfg["stage2_min_turns"]
+
         logger.start_encounter(
             case,
             seed,
@@ -376,13 +441,24 @@ class TrialOrchestrator:
         print("--- BASELINE (no strategy arms) ---")
         for turn in range(1, max_turns + 1):
             force_conclude = turn == max_turns
-            doctor_msg, _confidence = doctor.respond(last_patient, force_conclude=force_conclude)
+            allow = self._doctor_allow_finalize(
+                coverage,
+                cov_cfg,
+                stage_turn_idx=turn,
+                stage_min_turns=baseline_min,
+                force_conclude=force_conclude,
+            )
+            doctor_msg = doctor.respond(
+                last_patient,
+                force_conclude=force_conclude,
+                allow_finalize=allow,
+            )
             print(f"[Turn {turn}]")
             print(f"Doctor: {doctor_msg}")
 
             if doctor.has_concluded():
                 logger.log_turn(
-                    turn, 0, "baseline", doctor_msg, "", None,
+                    turn, 0, "baseline", doctor_msg, "",
                     mediq_meta=doctor.get_last_mediq_meta(),
                 )
                 print()
@@ -391,13 +467,28 @@ class TrialOrchestrator:
             last_patient = patient.respond(doctor_msg)
             print(f"Patient: {last_patient}\n")
             logger.log_turn(
-                turn, 0, "baseline", doctor_msg, last_patient, None,
+                turn, 0, "baseline", doctor_msg, last_patient,
                 mediq_meta=doctor.get_last_mediq_meta(),
             )
+            if cov_cfg["enabled"]:
+                probe = coverage.probe_if_due(turn, doctor.conversation_history)
+                if probe:
+                    print(
+                        f"[Coverage] {probe['coverage_count']}/{probe['total_facts']} "
+                        f"({probe['coverage_rate']:.0%})\n"
+                    )
+
+        cov_snap = self._finalize_coverage(logger, coverage, doctor, cov_cfg)
+        r2 = self.judge.compute_R2_from_coverage(
+            cov_snap["coverage_rate"],
+            high_threshold=cov_cfg["r2_high_threshold"],
+            coverage_count=cov_snap["coverage_count"],
+            total_facts=cov_snap["total_facts"],
+        )
+        logger.log_R2(r2)
 
         print("--- Evaluating Outcome ---")
         final_diag = doctor.get_final_diagnosis()
-        r2 = self._neutral_r2()
         self._attach_mediq_encounter_fields(logger, doctor)
         outcome = self._evaluate_encounter_outcome(
             doctor=doctor, case=case, final_diag=final_diag, R2=r2,
@@ -462,12 +553,22 @@ class TrialOrchestrator:
             }
 
         rounds_cfg = self._parse_rounds_config()
+        cov_cfg = self._parse_coverage_config()
+        coverage = CoverageSession(
+            self.judge,
+            case,
+            threshold=cov_cfg["threshold"],
+            check_every=cov_cfg["check_every"],
+        )
         stage1_max = rounds_cfg["stage1_max"]
         stage2_max = rounds_cfg["stage2_max"]
         adaptive_rounds = rounds_cfg["adaptive"]
+        stage1_min = cov_cfg["stage1_min_turns"]
+        stage2_min = cov_cfg["stage2_min_turns"]
         if encounter_extra is None:
             encounter_extra = {}
         encounter_extra["rounds_mode"] = rounds_cfg["mode"]
+        encounter_extra["coverage_threshold"] = cov_cfg["threshold"]
 
         logger.start_encounter(
             case,
@@ -488,8 +589,8 @@ class TrialOrchestrator:
         print(f"--- STAGE 1 ({stage1_arm.get('name', '')}) ---")
         if adaptive_rounds:
             print(
-                f"(rounds: adaptive, max={stage1_max}, min={rounds_cfg['stage1_min_turns']}, "
-                f"R1 threshold={self.judge.r1_responder_threshold})"
+                f"(rounds: adaptive, max={stage1_max}, min={stage1_min}, "
+                f"coverage>={cov_cfg['threshold']:.0%}, check_every={cov_cfg['check_every']})"
             )
 
         R1: Optional[Dict[str, Any]] = None
@@ -497,33 +598,57 @@ class TrialOrchestrator:
         stage1_turns_used = 0
         for turn in range(1, stage1_max + 1):
             stage1_turns_used = turn
-            doctor_msg, confidence = doctor.respond(last_patient)
+            allow = self._doctor_allow_finalize(
+                coverage,
+                cov_cfg,
+                stage_turn_idx=turn,
+                stage_min_turns=stage1_min,
+                force_conclude=False,
+            )
+            doctor_msg = doctor.respond(last_patient, allow_finalize=allow)
             print(f"[Turn {turn}]")
             print(f"Doctor: {doctor_msg}")
             last_patient = patient.respond(doctor_msg)
             print(f"Patient: {last_patient}\n")
             logger.log_turn(
-                turn, 1, stage1_arm_id, doctor_msg, last_patient, confidence,
+                turn, 1, stage1_arm_id, doctor_msg, last_patient,
                 mediq_meta=doctor.get_last_mediq_meta(),
             )
 
-            if adaptive_rounds and turn >= rounds_cfg["stage1_min_turns"]:
-                if turn % rounds_cfg["stage1_check_every"] == 0:
-                    r1_probe = self.judge.compute_R1(doctor.conversation_history, case)
-                    if _r1_allows_early_stop(r1_probe, rounds_cfg["stage1_red_flags_min"]):
-                        R1 = r1_probe
-                        stage1_early_stop = "r1_responder"
-                        print(
-                            f"[Adaptive] R1={R1.get('total')}/10 — early Stage 1 stop at turn {turn}\n"
-                        )
-                        break
+            if cov_cfg["enabled"]:
+                probe = coverage.probe_if_due(turn, doctor.conversation_history)
+                if probe:
+                    print(
+                        f"[Coverage] {probe['coverage_count']}/{probe['total_facts']} "
+                        f"({probe['coverage_rate']:.0%})\n"
+                    )
+
+            if (
+                adaptive_rounds
+                and turn >= stage1_min
+                and _coverage_allows_early_stop(
+                    coverage,
+                    min_turns_met=True,
+                    threshold=cov_cfg["threshold"],
+                )
+            ):
+                R1 = coverage_to_r1_snapshot(coverage.snapshot(), cov_cfg["threshold"])
+                stage1_early_stop = "fact_coverage"
+                print(
+                    f"[Adaptive] coverage {coverage.coverage_rate:.0%} — "
+                    f"early Stage 1 stop at turn {turn}\n"
+                )
+                break
 
         if R1 is None:
-            print("--- Computing R1 ---")
-            R1 = self.judge.compute_R1(doctor.conversation_history, case)
+            print("--- Stage 1 coverage (R1) ---")
+            R1 = coverage_to_r1_snapshot(coverage.snapshot(), cov_cfg["threshold"])
         else:
-            print("--- R1 (adaptive checkpoint) ---")
-        print(f"R1 Score: {R1.get('total')}/10 | Responder: {R1.get('responder')}")
+            print("--- R1 (coverage checkpoint) ---")
+        print(
+            f"Coverage: {R1.get('coverage_count')}/{R1.get('total_facts')} "
+            f"({R1.get('coverage_rate', 0):.0%}) | Responder: {R1.get('responder')}"
+        )
 
         logger._current["stage1_turns_used"] = stage1_turns_used
         logger._current["stage1_turns_max"] = stage1_max
@@ -537,7 +662,7 @@ class TrialOrchestrator:
                 "arm": forced_a2,
                 "pool_used": pool_key,
                 "pool": TrialRandomizer.STAGE2_POOLS[pool_key],
-                "R1_total": R1.get("total", 0),
+                "R1_total": int(float(R1.get("coverage_rate", 0)) * 10),
                 "forced": True,
             }
         elif run_mode == "smart_adaptive_loop" and policy_assigner is not None:
@@ -568,9 +693,8 @@ class TrialOrchestrator:
         print(f"--- STAGE 2 ({stage2_arm.get('name', '')}) ---")
         if adaptive_rounds:
             print(
-                f"(rounds: adaptive, max={stage2_max}, min={rounds_cfg['stage2_min_turns']}, "
-                f"early diagnosis conf>={rounds_cfg['early_diagnosis_confidence']:.2f}, "
-                f"consecutive={rounds_cfg['stage2_consecutive_high']})"
+                f"(rounds: adaptive, max={stage2_max}, min={stage2_min}, "
+                f"coverage>={cov_cfg['threshold']:.0%}, check_every={cov_cfg['check_every']})"
             )
 
         arm_retrieval_enabled = (
@@ -578,11 +702,9 @@ class TrialOrchestrator:
             and bool((stage2_arm.get("tool_access") or {}).get("retrieval", False))
         )
 
-        stage2_hist_start = len(doctor.conversation_history)
         stage2_start = stage1_turns_used + 1
         last_stage2_turn = stage1_turns_used + stage2_max
         pending_retrieval_context: Optional[str] = None
-        consecutive_high = 0
         early_conclude = False
         stage2_early_stop: Optional[str] = None
         stage2_turn_idx = 0
@@ -590,13 +712,21 @@ class TrialOrchestrator:
         for turn in range(stage2_start, last_stage2_turn + 1):
             stage2_turn_idx += 1
             force_conclude = turn == last_stage2_turn or early_conclude
-            doctor_msg, confidence = doctor.respond(
+            allow = self._doctor_allow_finalize(
+                coverage,
+                cov_cfg,
+                stage_turn_idx=stage2_turn_idx,
+                stage_min_turns=stage2_min,
+                force_conclude=force_conclude,
+            )
+            doctor_msg = doctor.respond(
                 last_patient,
                 force_conclude=force_conclude,
                 retrieval_context=pending_retrieval_context,
+                allow_finalize=allow,
             )
             if early_conclude and not doctor.has_concluded():
-                stage2_early_stop = stage2_early_stop or "high_confidence"
+                stage2_early_stop = stage2_early_stop or "fact_coverage"
             early_conclude = False
             pending_retrieval_context = None
 
@@ -606,17 +736,16 @@ class TrialOrchestrator:
                     if self._retriever is not None:
                         passages = self._retriever.retrieve(query, k=self._rag_k)
                         pending_retrieval_context = self._format_retrieval_result(passages)
-                        print(f"[RAG] Query: {query!r} → {len(passages)} passages retrieved")
+                        print(f"[RAG] Query: {query!r} -> {len(passages)} passages retrieved")
 
-            conf_str = f" [conf={confidence:.2f}]" if confidence is not None else ""
-            print(f"[Turn {turn}]{conf_str}")
+            print(f"[Turn {turn}]")
             print(f"Doctor: {doctor_msg}")
 
             if doctor.has_concluded():
                 if stage2_early_stop is None and turn < last_stage2_turn:
                     stage2_early_stop = "doctor_concluded"
                 logger.log_turn(
-                    turn, 2, stage2_arm_id, doctor_msg, "", confidence,
+                    turn, 2, stage2_arm_id, doctor_msg, "",
                     mediq_meta=doctor.get_last_mediq_meta(),
                 )
                 print()
@@ -626,49 +755,46 @@ class TrialOrchestrator:
             last_patient = patient.respond(patient_facing_msg)
             print(f"Patient: {last_patient}\n")
             logger.log_turn(
-                turn, 2, stage2_arm_id, doctor_msg, last_patient, confidence,
+                turn, 2, stage2_arm_id, doctor_msg, last_patient,
                 mediq_meta=doctor.get_last_mediq_meta(),
             )
 
+            if cov_cfg["enabled"]:
+                probe = coverage.probe_if_due(turn, doctor.conversation_history)
+                if probe:
+                    print(
+                        f"[Coverage] {probe['coverage_count']}/{probe['total_facts']} "
+                        f"({probe['coverage_rate']:.0%})\n"
+                    )
+
             if (
                 adaptive_rounds
-                and rounds_cfg["stage2_auto_conclude"]
-                and confidence is not None
+                and stage2_turn_idx >= stage2_min
+                and coverage.meets_threshold()
+                and turn < last_stage2_turn
             ):
-                if confidence >= rounds_cfg["early_diagnosis_confidence"]:
-                    consecutive_high += 1
-                else:
-                    consecutive_high = 0
-                if (
-                    stage2_turn_idx >= rounds_cfg["stage2_min_turns"]
-                    and consecutive_high >= rounds_cfg["stage2_consecutive_high"]
-                    and turn < last_stage2_turn
-                ):
-                    early_conclude = True
-                    stage2_early_stop = "high_confidence"
-                    print(
-                        f"[Adaptive] confidence >= {rounds_cfg['early_diagnosis_confidence']:.2f} "
-                        f"for {consecutive_high} turn(s) — forcing diagnosis next turn\n"
-                    )
+                early_conclude = True
+                stage2_early_stop = "fact_coverage"
+                print(
+                    f"[Adaptive] coverage {coverage.coverage_rate:.0%} — "
+                    f"forcing diagnosis next turn\n"
+                )
 
         logger._current["stage2_turns_used"] = stage2_turn_idx
         logger._current["stage2_turns_max"] = stage2_max
         if stage2_early_stop:
             logger._current["stage2_early_stop"] = stage2_early_stop
 
-        print("--- Computing R2 ---")
-        stage2_confidences = logger.get_stage2_confidences()
-        thr = float(self.config.get("trial", {}).get("R2_high_confidence_threshold", 0.7))
-        stage2_slice = doctor.conversation_history[stage2_hist_start:]
-        R2 = self.judge.compute_R2(
-            doctor.conversation_history,
-            stage2_confidences,
-            high_threshold=thr,
-            stage2_conversation_slice=stage2_slice,
-            case=case,
+        cov_snap = self._finalize_coverage(logger, coverage, doctor, cov_cfg)
+        print("--- Computing R2 (fact coverage) ---")
+        R2 = self.judge.compute_R2_from_coverage(
+            cov_snap["coverage_rate"],
+            high_threshold=cov_cfg["r2_high_threshold"],
+            coverage_count=cov_snap["coverage_count"],
+            total_facts=cov_snap["total_facts"],
         )
         print(
-            f"R2 Confidence: {R2['confidence_level']} (final={R2['final_confidence']:.2f}, "
+            f"R2 Coverage: {R2['confidence_level']} (rate={R2['final_confidence']:.2f}, "
             f"source={R2.get('r2_source', '')})\n"
         )
         logger.log_R2(R2)
