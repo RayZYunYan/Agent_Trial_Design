@@ -50,6 +50,21 @@ EXPERT_SYSTEM = {
         "conclusion. Respond with the correct letter choice (A, B, C, or D) and NOTHING "
         "ELSE.\nLETTER CHOICE: "
     ),
+    "grounded_answer": (
+        "Using ONLY information explicitly stated in the conversation log above, pick the "
+        "best letter (A, B, C, or D) for the inquiry. If the conversation does not contain "
+        "enough factual information to differentiate the options, respond with ABSTAIN and "
+        "NOTHING ELSE.\nLETTER CHOICE: "
+    ),
+    "grounded_answer_RG": (
+        "Using ONLY information explicitly stated in the conversation log above, pick the "
+        "best letter (A, B, C, or D) for the inquiry. You MUST cite patient dialogue.\n"
+        "If the conversation does not contain enough factual information, respond:\n"
+        "REASON: <one sentence>\nABSTAIN\n"
+        "Otherwise respond:\n"
+        "REASON: <one sentence citing specific patient facts from the log>\n"
+        "ANSWER: <single letter A, B, C, or D and NOTHING ELSE>"
+    ),
     "curr_template": """A patient comes into the clinic presenting with a symptom as described in the conversation log below:
 
 PATIENT INFORMATION: {}

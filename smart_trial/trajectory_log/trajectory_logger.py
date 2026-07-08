@@ -110,9 +110,11 @@ class TrajectoryLogger:
             self._stage2_confidences.append(confidence)
         if mediq_meta:
             turn_record["mediq"] = mediq_meta
-            letter = mediq_meta.get("letter_choice")
-            if letter:
-                turn_record["shadow_letter"] = letter
+            shadow = mediq_meta.get("shadow_letter")
+            if shadow:
+                turn_record["shadow_letter"] = shadow
+            elif mediq_meta.get("committed_choice") and mediq_meta.get("letter_choice"):
+                turn_record["committed_letter"] = mediq_meta.get("letter_choice")
 
         self._turns.append(turn_record)
         self._current["total_turns"] = turn_number

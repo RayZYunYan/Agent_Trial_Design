@@ -61,10 +61,11 @@ rag:
 mediq:
   enabled: true
   expert_class: "BasicExpert"
-  rationale_generation: false
+  rationale_generation: true
   self_consistency: 1
   stage1_suppress_answer: true
   stage2_allow_mcq_finalize: true
+  shadow_choice_enabled: false
 
 logging:
   output_dir: "smart_trial/outputs"

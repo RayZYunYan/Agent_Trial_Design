@@ -11,6 +11,7 @@ from smart_trial.mediq.abstention import (
 )
 from smart_trial.mediq.config import MediQConfig
 from smart_trial.mediq.prompts import build_global_clinical_task_block, build_safe_patient_initial_info
+from smart_trial.mediq.question_dedupe import extract_doctor_questions
 
 
 @dataclass
@@ -20,13 +21,18 @@ class MediQTurnMeta:
     mediq_confidence: float
     suppressed_answer: bool = False
     expert_class: str = "BasicExpert"
+    shadow_letter: Optional[str] = None
+    rationale: Optional[str] = None
+    committed_choice: bool = False
 
 
 @dataclass
 class MediQSessionState:
     intermediate_choices: List[str] = field(default_factory=list)
+    shadow_choices: List[str] = field(default_factory=list)
     turn_metas: List[MediQTurnMeta] = field(default_factory=list)
     final_letter_choice: Optional[str] = None
+    final_rationale: Optional[str] = None
 
 
 def build_interaction_history(
@@ -103,6 +109,7 @@ def run_basic_expert_turn(
         arm_system_injection=arm_system_injection,
         global_clinical_block=global_block,
         turn_index=turn_index,
+        shadow_choice_enabled=mediq_config.shadow_choice_enabled,
     )
 
     suppressed = False
@@ -116,6 +123,7 @@ def run_basic_expert_turn(
         suppressed = True
         effective_abstain = True
         if not result.atomic_question:
+            asked = extract_doctor_questions(conversation_history)
             result.atomic_question = generate_atomic_question(
                 model,
                 patient_state=patient_state,
@@ -123,13 +131,21 @@ def run_basic_expert_turn(
                 options_dict=options,
                 arm_system_injection=arm_system_injection,
                 global_clinical_block=global_block,
+                exclude_questions=asked,
+                turn_index=turn_index,
             )
+
+    committed = result.committed_choice and not suppressed
+    committed_letter = result.letter_choice if committed else None
 
     meta = MediQTurnMeta(
         abstain=effective_abstain,
-        letter_choice=result.letter_choice,
+        letter_choice=committed_letter,
         mediq_confidence=result.confidence,
         suppressed_answer=suppressed,
         expert_class=mediq_config.expert_class,
+        shadow_letter=result.shadow_letter,
+        rationale=result.rationale,
+        committed_choice=committed,
     )
     return result, meta

@@ -95,8 +95,61 @@ def test_mediq_enabled_basic_expert_mock():
     assert "?" in msg
     meta = doctor.get_last_mediq_meta()
     assert meta is not None
-    assert meta["letter_choice"] == "C"
-    assert "C" in doctor.get_intermediate_choices()
+    assert meta["letter_choice"] is None
+    assert meta.get("shadow_letter") is None
+    assert doctor.get_intermediate_choices() == []
+    assert doctor.get_final_letter_choice() is None
+
+
+def test_mediq_shadow_logging_when_enabled():
+    model = ModelClient(provider="mock", model_name="mock")
+    doctor = DoctorAgent(
+        model,
+        {"arm_id": "A1a", "stage": 1, "system_prompt_injection": ""},
+        case=_sample_case(),
+        mediq_config=MediQConfig(
+            enabled=True,
+            stage1_suppress_answer=True,
+            shadow_choice_enabled=True,
+        ),
+    )
+    doctor.get_initial_message(_sample_case())
+    doctor.respond("Fever for two days.", force_conclude=False)
+    meta = doctor.get_last_mediq_meta()
+    assert meta is not None
+    assert meta["letter_choice"] is None
+    assert meta.get("shadow_letter") == "C"
+    assert doctor.get_shadow_choices() == ["C"]
+    assert doctor.get_final_letter_choice() is None
+
+
+def test_parse_rg_response_answer():
+    from smart_trial.mediq.parsing import parse_rg_response
+
+    opts = {"A": "a", "B": "b", "C": "c", "D": "d"}
+    parsed = parse_rg_response("REASON: fever and dysuria\nANSWER: C", opts)
+    assert parsed.letter_choice == "C"
+    assert parsed.reason == "fever and dysuria"
+    assert parsed.abstain is False
+
+
+def test_force_conclude_uses_grounded_mcq():
+    model = ModelClient(provider="mock", model_name="mock")
+    doctor = DoctorAgent(
+        model,
+        {"arm_id": "A2a", "stage": 2, "system_prompt_injection": ""},
+        case=_sample_case(),
+        mediq_config=MediQConfig(enabled=True),
+    )
+    doctor.conversation_history = [
+        {"role": "assistant", "content": "Hello."},
+        {"role": "user", "content": "Hi."},
+    ]
+    doctor.turn_count = 1
+    msg = doctor.respond("More details.", force_conclude=True)
+    assert "[DIAGNOSIS]" in msg
+    assert doctor.get_final_letter_choice() == "C"
+    assert doctor.get_final_rationale() == "mock grounded choice"
 
 
 def test_mediq_stage2_finalize_mock():

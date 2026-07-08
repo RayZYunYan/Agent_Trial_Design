@@ -5,6 +5,121 @@ from typing import Any, Dict, List, Optional
 from smart_trial.models.model_client import ModelClient
 
 
+def filter_scorable_atomic_facts(facts: List[str]) -> List[str]:
+    """Drop facts not elicitable from patient dialogue (e.g. physician orders)."""
+    out: List[str] = []
+    for fact in facts:
+        low = fact.lower()
+        if "physician orders" in low or "doctor orders" in low:
+            continue
+        if low.startswith("physician ") and "order" in low:
+            continue
+        out.append(fact)
+    return out
+
+
+def build_context_corpus(
+    case: Dict[str, Any],
+    conversation_history: List[Dict[str, Any]],
+) -> str:
+    """Chief complaint, case demographics, and doctor opening before first patient reply."""
+    parts: List[str] = []
+    chief = (case.get("chief_complaint") or "").strip()
+    if chief:
+        parts.append(chief)
+    age = case.get("age")
+    gender = case.get("gender")
+    if age is not None and str(age).strip():
+        parts.append(str(age).strip())
+    if gender is not None and str(gender).strip():
+        parts.append(str(gender).strip())
+    for msg in conversation_history:
+        if msg.get("role") == "assistant":
+            content = (msg.get("content") or "").strip()
+            if content:
+                parts.append(content)
+        elif msg.get("role") == "user":
+            break
+    return "\n".join(parts)
+
+
+def _normalize_fact_text(fact: str) -> str:
+    return re.sub(r"^\d+\.\s*", "", (fact or "").strip()).lower()
+
+
+def _context_snippet(corpus: str, needle: str, *, window: int = 80) -> str:
+    low = corpus.lower()
+    idx = low.find(needle.lower())
+    if idx < 0:
+        return needle
+    start = max(0, idx - 20)
+    end = min(len(corpus), idx + len(needle) + window)
+    snippet = corpus[start:end].strip()
+    if start > 0:
+        snippet = "..." + snippet
+    if end < len(corpus):
+        snippet = snippet + "..."
+    return snippet
+
+
+def match_atomic_fact_to_context(
+    fact: str,
+    corpus: str,
+    case: Optional[Dict[str, Any]] = None,
+) -> Optional[str]:
+    """Return context snippet when a non-lab fact is stated in the vignette or opening."""
+    fact_norm = _normalize_fact_text(fact)
+    corp_low = corpus.lower()
+    if not fact_norm or not corp_low:
+        return None
+
+    lab_hints = StageJudge._LAB_FACT_HINTS
+    if any(hint in fact_norm for hint in lab_hints):
+        return None
+
+    if "sexually active" in fact_norm and "sexually active" in corp_low:
+        return _context_snippet(corpus, "sexually active")
+
+    age_match = re.search(
+        r"patient is (?:a )?(\d{1,3})\s*[- ]?year\s*[- ]?old\s*(male|female|man|woman)\b",
+        fact_norm,
+    )
+    if age_match:
+        age, sex = age_match.group(1), age_match.group(2)
+        sex_terms = {
+            "male": ("male", "man"),
+            "female": ("female", "woman"),
+            "man": ("male", "man"),
+            "woman": ("female", "woman"),
+        }.get(sex, (sex,))
+        if age in corp_low and any(term in corp_low for term in sex_terms):
+            year_pat = re.search(rf"\b{age}\s*[- ]?year\s*[- ]?old", corp_low)
+            if year_pat:
+                return _context_snippet(corpus, year_pat.group(0))
+            return _context_snippet(corpus, sex_terms[0])
+
+    if case:
+        age_raw = str(case.get("age", "")).strip()
+        gender_raw = str(case.get("gender", "")).strip().lower()
+        if age_raw and age_raw in fact_norm and age_raw in corp_low:
+            if not gender_raw or gender_raw in fact_norm and gender_raw in corp_low:
+                return _context_snippet(corpus, age_raw)
+
+    complain_match = re.search(r"complain\w*\s+of\s+(.+)$", fact_norm)
+    if complain_match:
+        symptom_text = complain_match.group(1).strip(" .")
+        keywords = [w for w in re.findall(r"[a-z]{4,}", symptom_text)]
+        if keywords and all(word in corp_low for word in keywords):
+            anchor = keywords[0]
+            for word in keywords:
+                if word in corp_low:
+                    anchor = word
+                    break
+            return _context_snippet(corpus, anchor)
+
+    return None
+
+
 class StageJudge:
     """LLM judge for R1 (history adequacy), R2 (confidence state), and final outcome."""
 
@@ -140,6 +255,62 @@ Output STRICTLY valid JSON only, no markdown fences:
         "unsure",
         "unclear",
         "no answer",
+        "don't think",
+        "do not think",
+        "don't think so",
+        "haven't noticed",
+        "have not noticed",
+        "not certain",
+        "i'm not certain",
+        "why does that matter",
+        "why are you asking",
+        "why is that important",
+    )
+
+    _LAB_FACT_HINTS = (
+        "culture",
+        "maltose",
+        "capsule",
+        "ferment",
+        "lab ",
+        "laboratory",
+        "imaging",
+        "x-ray",
+        "xray",
+        " mri",
+        " ct ",
+        "gram stain",
+        "gram-negative",
+        "gram positive",
+        "fluid shows",
+        "test result",
+        "blood work",
+        "wbc",
+        "cbc",
+    )
+
+    _LAB_EVIDENCE_HINTS = (
+        "culture",
+        "lab",
+        "test",
+        "result",
+        "positive",
+        "negative",
+        "bacteria",
+        "ferment",
+        "maltose",
+        "capsule",
+        "gram",
+        "fluid",
+        "scan",
+        "imaging",
+        "x-ray",
+        "xray",
+        "mri",
+        "ct ",
+        "specimen",
+        "grown",
+        "showed",
     )
 
     def __init__(
@@ -262,15 +433,7 @@ Output STRICTLY valid JSON only, no markdown fences:
                 }
             )
         if review_mode and not newly and len(covered_set) < len(atomic_facts):
-            idx = len(covered_set) + 1
-            if idx <= len(atomic_facts):
-                newly.append(
-                    {
-                        "index": idx,
-                        "fact": atomic_facts[idx - 1],
-                        "patient_evidence": "mock final audit",
-                    }
-                )
+            pass  # No synthetic fill on review — prefer under-counting
         return {"newly_covered": newly}
 
     def _sanitize_coverage_delta(
@@ -297,19 +460,75 @@ Output STRICTLY valid JSON only, no markdown fences:
                 continue
             if new_conversation and not self._evidence_in_patient_dialogue(evidence, new_conversation):
                 continue
+            fact_text = str(item.get("fact") or atomic_facts[idx - 1])
+            if self._is_lab_fact(fact_text) and not self._lab_evidence_ok(evidence):
+                continue
             seen_indices.add(idx)
             clean.append(
                 {
                     "index": idx,
-                    "fact": str(item.get("fact") or atomic_facts[idx - 1]),
+                    "fact": fact_text,
                     "patient_evidence": evidence,
                 }
             )
         return {"newly_covered": clean}
 
+    @classmethod
+    def _is_lab_fact(cls, fact_text: str) -> bool:
+        low = fact_text.lower()
+        return any(hint in low for hint in cls._LAB_FACT_HINTS)
+
+    @classmethod
+    def _lab_evidence_ok(cls, evidence: str) -> bool:
+        low = evidence.lower()
+        return any(hint in low for hint in cls._LAB_EVIDENCE_HINTS)
+
     def _is_evasive_evidence(self, evidence: str) -> bool:
         low = evidence.lower()
+        substantive_markers = self._LAB_EVIDENCE_HINTS + (
+            "fever",
+            "pain",
+            "swollen",
+            "urination",
+            " pee",
+            "knee",
+            "joint",
+            "antibiotic",
+            "medication",
+            "started",
+            "inflamm",
+        )
+        if any(marker in low for marker in substantive_markers) and len(re.findall(r"\w+", low)) >= 6:
+            return False
         return any(phrase in low for phrase in self._EVASIVE_PHRASES)
+
+    def probe_context_atomic_facts(
+        self,
+        case: Dict[str, Any],
+        *,
+        atomic_facts: List[str],
+        already_covered: List[int],
+        conversation_history: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Cover vignette/opening facts (demographics, chief-complaint symptoms) without patient speech."""
+        covered_set = set(int(i) for i in already_covered)
+        corpus = build_context_corpus(case, conversation_history)
+        newly: List[Dict[str, Any]] = []
+        for idx, fact in enumerate(atomic_facts, start=1):
+            if idx in covered_set:
+                continue
+            evidence = match_atomic_fact_to_context(fact, corpus, case)
+            if not evidence:
+                continue
+            newly.append(
+                {
+                    "index": idx,
+                    "fact": fact,
+                    "patient_evidence": evidence,
+                    "evidence_source": "context",
+                }
+            )
+        return {"newly_covered": newly}
 
     @staticmethod
     def _patient_messages_text(conversation: List[Dict[str, Any]]) -> str:
@@ -335,7 +554,7 @@ Output STRICTLY valid JSON only, no markdown fences:
         if not words:
             return False
         matched = sum(1 for w in words if w in patient_norm)
-        return matched / len(words) >= 0.6
+        return matched / len(words) >= 0.8
 
     def compute_R2_from_coverage(
         self,

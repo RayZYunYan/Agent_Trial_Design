@@ -4,8 +4,18 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
+from smart_trial.mediq.abstention import grounded_mcq_choice, generate_atomic_question
 from smart_trial.mediq import MediQConfig, MediQSessionState, option_text_for_letter, run_basic_expert_turn
+from smart_trial.mediq.bridge import build_patient_state, normalize_options
 from smart_trial.mediq.prompts import build_global_clinical_task_block
+from smart_trial.mediq.question_dedupe import (
+    SYMPTOMS_FALLBACK,
+    TESTS_TREATMENTS_FALLBACK,
+    extract_doctor_questions,
+    pick_fact_directed_question,
+    pick_fallback_question,
+    should_block_question,
+)
 from smart_trial.models.model_client import ModelClient
 
 
@@ -179,12 +189,12 @@ Rules:
         arm_injection = self.current_arm.get("system_prompt_injection", "") or ""
 
         if force_conclude:
-            letter = self._resolve_letter_for_finalize()
+            letter = self._resolve_final_mcq_letter(arm_injection)
             response = self._generate_final_assessment(
                 letter,
                 retrieval_context=retrieval_context,
             )
-            self._record_mediq_shadow(letter, abstain=False, suppressed=False)
+            self._record_mediq_finalize(letter, abstain=False, suppressed=False)
             return response
 
         _result, meta = run_basic_expert_turn(
@@ -199,16 +209,21 @@ Rules:
         self._last_mediq_meta = {
             "abstain": meta.abstain,
             "letter_choice": meta.letter_choice,
+            "shadow_letter": meta.shadow_letter,
+            "rationale": meta.rationale,
+            "committed_choice": meta.committed_choice,
             "mediq_confidence": meta.mediq_confidence,
             "suppressed_answer": meta.suppressed_answer,
             "expert_class": meta.expert_class,
         }
-        if meta.letter_choice:
-            self.mediq_state.intermediate_choices.append(meta.letter_choice)
+        if meta.shadow_letter:
+            self.mediq_state.shadow_choices.append(meta.shadow_letter)
+            self.mediq_state.intermediate_choices.append(meta.shadow_letter)
         self.mediq_state.turn_metas.append(meta)
 
         wants_to_finalize = (
-            not meta.abstain
+            meta.committed_choice
+            and not meta.abstain
             and self.mediq_config.stage2_allow_mcq_finalize
             and self.current_stage in (0, 2)
         )
@@ -216,6 +231,7 @@ Rules:
         if wants_to_finalize and self._allow_finalize:
             letter = meta.letter_choice
             self.mediq_state.final_letter_choice = letter
+            self.mediq_state.final_rationale = meta.rationale
             response = self._generate_final_assessment(
                 letter,
                 retrieval_context=retrieval_context,
@@ -226,19 +242,103 @@ Rules:
             self._last_mediq_meta["finalize_blocked"] = "low_coverage"
             self._last_mediq_meta["suppressed_answer"] = True
             question = _result.atomic_question or generate_fallback_question()
+            return self._ensure_unique_doctor_question(question, arm_injection)
+
+        question = _result.atomic_question or SYMPTOMS_FALLBACK
+        return self._ensure_unique_doctor_question(question, arm_injection)
+
+    _REGEN_ATTEMPTS = 3
+
+    def _ensure_unique_doctor_question(self, question: str, arm_injection: str) -> str:
+        """Cap identical questions; regenerate or rotate fallbacks when blocked."""
+        assert self.case is not None
+        history = self.conversation_history
+        prior = extract_doctor_questions(history)
+        max_occ = self.mediq_config.max_question_occurrences
+
+        if not should_block_question(question, history, max_occurrences=max_occ):
             return question
 
-        question = _result.atomic_question or "Could you tell me more about your symptoms?"
+        patient_state = build_patient_state(self.case, history)
+        inquiry = (self.case.get("question") or "Which option is correct?").strip()
+        options = normalize_options(self.case)
+        if not options:
+            options = {"A": "", "B": "", "C": "", "D": ""}
+        global_block = build_global_clinical_task_block(self.case)
+
+        for attempt in range(self._REGEN_ATTEMPTS):
+            new_q = generate_atomic_question(
+                self.model,
+                patient_state=patient_state,
+                inquiry=inquiry,
+                options_dict=options,
+                arm_system_injection=arm_injection,
+                global_clinical_block=global_block,
+                exclude_questions=prior,
+                turn_index=self.turn_count + attempt,
+            )
+            if not should_block_question(new_q, history, max_occurrences=max_occ):
+                self._mark_dedupe_regenerated("llm_regen")
+                return new_q
+
+        fallback = pick_fallback_question(
+            history,
+            max_occurrences=max_occ,
+            turn_index=self.turn_count,
+        )
+        if fallback:
+            self._mark_dedupe_regenerated("fallback_pool")
+            return fallback
+
+        fact_q = pick_fact_directed_question(
+            self.case,
+            history,
+            max_occurrences=max_occ,
+            turn_index=self.turn_count,
+        )
+        if fact_q:
+            self._mark_dedupe_regenerated("atomic_fact")
+            return fact_q
+
+        self._mark_dedupe_regenerated("exhausted")
         return question
 
-    def _resolve_letter_for_finalize(self) -> Optional[str]:
-        if self.mediq_state.final_letter_choice:
-            return self.mediq_state.final_letter_choice
-        if self.mediq_state.intermediate_choices:
-            return self.mediq_state.intermediate_choices[-1]
-        return None
+    def _mark_dedupe_regenerated(self, reason: str) -> None:
+        if self._last_mediq_meta is not None:
+            self._last_mediq_meta["dedupe_regenerated"] = True
+            self._last_mediq_meta["dedupe_reason"] = reason
 
-    def _record_mediq_shadow(
+    def _resolve_final_mcq_letter(self, arm_injection: str) -> Optional[str]:
+        """Grounded finalize MCQ — MediQ-aligned; shadow choices are not used."""
+        for meta in reversed(self.mediq_state.turn_metas):
+            if meta.committed_choice and meta.letter_choice:
+                self.mediq_state.final_letter_choice = meta.letter_choice
+                self.mediq_state.final_rationale = meta.rationale
+                return meta.letter_choice
+
+        assert self.case is not None
+        patient_state = build_patient_state(self.case, self.conversation_history)
+        inquiry = (self.case.get("question") or "Which option is correct?").strip()
+        options = normalize_options(self.case)
+        if not options:
+            options = {"A": "", "B": "", "C": "", "D": ""}
+        global_block = build_global_clinical_task_block(self.case)
+        result = grounded_mcq_choice(
+            self.model,
+            patient_state=patient_state,
+            inquiry=inquiry,
+            options_dict=options,
+            arm_system_injection=arm_injection,
+            global_clinical_block=global_block,
+            rationale_generation=self.mediq_config.rationale_generation,
+        )
+        if result.letter_choice and not result.abstained:
+            self.mediq_state.final_letter_choice = result.letter_choice
+            self.mediq_state.final_rationale = result.rationale
+            return result.letter_choice
+        return self.mediq_state.final_letter_choice
+
+    def _record_mediq_finalize(
         self,
         letter: Optional[str],
         *,
@@ -246,7 +346,6 @@ Rules:
         suppressed: bool,
     ) -> None:
         if letter:
-            self.mediq_state.intermediate_choices.append(letter)
             self.mediq_state.final_letter_choice = letter
         self._last_mediq_meta = {
             "abstain": abstain,
@@ -255,6 +354,7 @@ Rules:
             "suppressed_answer": suppressed,
             "expert_class": self.mediq_config.expert_class,
             "forced_finalize": True,
+            "committed_choice": bool(letter),
         }
 
     def _generate_final_assessment(
@@ -356,9 +456,15 @@ Rules:
     def get_intermediate_choices(self) -> List[str]:
         return list(self.mediq_state.intermediate_choices)
 
+    def get_shadow_choices(self) -> List[str]:
+        return list(self.mediq_state.shadow_choices)
+
+    def get_final_rationale(self) -> Optional[str]:
+        return self.mediq_state.final_rationale
+
     def get_last_mediq_meta(self) -> Optional[Dict[str, Any]]:
         return self._last_mediq_meta
 
 
 def generate_fallback_question() -> str:
-    return "Could you tell me more about any tests or treatments you have had for this problem?"
+    return TESTS_TREATMENTS_FALLBACK

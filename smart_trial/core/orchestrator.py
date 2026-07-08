@@ -255,12 +255,16 @@ class TrialOrchestrator:
         doctor: DoctorAgent,
         cov_cfg: Dict[str, Any],
     ) -> Dict[str, Any]:
-        final = coverage.final_audit(doctor.conversation_history)
-        snap = coverage_to_r1_snapshot(final, cov_cfg["threshold"])
+        """Return flushed coverage snapshot for R2/gating and summary output."""
+        if cov_cfg.get("enabled", True):
+            coverage.probe_pending(doctor.conversation_history)
+        snap = coverage_to_r1_snapshot(coverage.snapshot(), cov_cfg["threshold"])
         logger._current["final_coverage_rate"] = snap["coverage_rate"]
         logger._current["final_coverage_count"] = snap["coverage_count"]
         logger._current["final_coverage_total"] = snap["total_facts"]
         logger._current["covered_facts"] = snap.get("covered_facts") or []
+        logger._current["incremental_coverage_rate"] = snap["coverage_rate"]
+        logger._current["incremental_coverage_count"] = snap["coverage_count"]
         enc_id = logger._current.get("encounter_id", "enc")
         if self._output_dir is not None:
             out_dir = Path(self._output_dir)
@@ -324,7 +328,9 @@ class TrialOrchestrator:
             "enabled": True,
             "expert_class": doctor.mediq_config.expert_class,
             "intermediate_choices": doctor.get_intermediate_choices(),
+            "shadow_choices": doctor.get_shadow_choices(),
             "final_letter_choice": doctor.get_final_letter_choice(),
+            "final_rationale": doctor.get_final_rationale(),
         }
 
     def _evaluate_encounter_outcome(
@@ -437,6 +443,8 @@ class TrialOrchestrator:
         initial_msg = doctor.get_initial_message(case)
         print(f"[Opening]\nDoctor: {initial_msg}\n")
         last_patient = patient.respond(initial_msg)
+        if cov_cfg["enabled"]:
+            coverage.seed_context_coverage(doctor.conversation_history)
 
         print("--- BASELINE (no strategy arms) ---")
         for turn in range(1, max_turns + 1):
@@ -477,6 +485,9 @@ class TrialOrchestrator:
                         f"[Coverage] {probe['coverage_count']}/{probe['total_facts']} "
                         f"({probe['coverage_rate']:.0%})\n"
                     )
+
+        if cov_cfg["enabled"]:
+            coverage.probe_pending(doctor.conversation_history)
 
         cov_snap = self._finalize_coverage(logger, coverage, doctor, cov_cfg)
         r2 = self.judge.compute_R2_from_coverage(
@@ -585,6 +596,8 @@ class TrialOrchestrator:
         initial_msg = doctor.get_initial_message(case)
         print(f"[Opening]\nDoctor: {initial_msg}\n")
         last_patient = patient.respond(initial_msg)
+        if cov_cfg["enabled"]:
+            coverage.seed_context_coverage(doctor.conversation_history)
 
         print(f"--- STAGE 1 ({stage1_arm.get('name', '')}) ---")
         if adaptive_rounds:
@@ -626,6 +639,13 @@ class TrialOrchestrator:
             if (
                 adaptive_rounds
                 and turn >= stage1_min
+                and cov_cfg["enabled"]
+            ):
+                coverage.probe_pending(doctor.conversation_history, turn=turn)
+
+            if (
+                adaptive_rounds
+                and turn >= stage1_min
                 and _coverage_allows_early_stop(
                     coverage,
                     min_turns_met=True,
@@ -635,6 +655,10 @@ class TrialOrchestrator:
                 R1 = coverage_to_r1_snapshot(coverage.snapshot(), cov_cfg["threshold"])
                 stage1_early_stop = "fact_coverage"
                 print(
+                    f"[Coverage] {coverage.coverage_count}/{coverage.total_facts} "
+                    f"({coverage.coverage_rate:.0%})\n"
+                )
+                print(
                     f"[Adaptive] coverage {coverage.coverage_rate:.0%} — "
                     f"early Stage 1 stop at turn {turn}\n"
                 )
@@ -642,6 +666,8 @@ class TrialOrchestrator:
 
         if R1 is None:
             print("--- Stage 1 coverage (R1) ---")
+            if cov_cfg["enabled"]:
+                coverage.probe_pending(doctor.conversation_history, turn=stage1_turns_used)
             R1 = coverage_to_r1_snapshot(coverage.snapshot(), cov_cfg["threshold"])
         else:
             print("--- R1 (coverage checkpoint) ---")
@@ -742,6 +768,8 @@ class TrialOrchestrator:
             print(f"Doctor: {doctor_msg}")
 
             if doctor.has_concluded():
+                if cov_cfg["enabled"]:
+                    coverage.probe_pending(doctor.conversation_history, turn=turn)
                 if stage2_early_stop is None and turn < last_stage2_turn:
                     stage2_early_stop = "doctor_concluded"
                 logger.log_turn(
@@ -766,6 +794,9 @@ class TrialOrchestrator:
                         f"[Coverage] {probe['coverage_count']}/{probe['total_facts']} "
                         f"({probe['coverage_rate']:.0%})\n"
                     )
+
+            if cov_cfg["enabled"]:
+                coverage.probe_pending(doctor.conversation_history, turn=turn)
 
             if (
                 adaptive_rounds

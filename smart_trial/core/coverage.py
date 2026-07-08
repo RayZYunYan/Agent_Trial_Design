@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
-from smart_trial.core.judge import StageJudge
+from smart_trial.core.judge import StageJudge, filter_scorable_atomic_facts
 
 
 def parse_coverage_config(trial_cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -64,7 +64,9 @@ class CoverageSession:
 
     def __post_init__(self) -> None:
         raw = self.case.get("atomic_facts") or []
-        self.atomic_facts = [str(f).strip() for f in raw if str(f).strip()]
+        self.atomic_facts = filter_scorable_atomic_facts(
+            [str(f).strip() for f in raw if str(f).strip()]
+        )
 
     @property
     def total_facts(self) -> int:
@@ -103,47 +105,47 @@ class CoverageSession:
     ) -> Optional[Dict[str, Any]]:
         if not self.should_probe(turn):
             return None
+        return self.probe_pending(conversation_history, turn=turn)
+
+    def probe_pending(
+        self,
+        conversation_history: List[Dict[str, Any]],
+        *,
+        turn: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Flush unaudited dialogue since the last probe (e.g. before early stop)."""
         new_slice = conversation_history[self.last_history_len :]
-        if not new_slice and self.last_history_len > 0:
-            self.last_history_len = len(conversation_history)
-            return None
-        delta = self.judge.probe_fact_coverage_incremental(
-            self.case,
-            new_conversation=new_slice,
-            atomic_facts=self.atomic_facts,
-            already_covered=sorted(self.covered_indices),
-        )
-        self._merge_delta(delta)
+        if new_slice:
+            delta = self.judge.probe_fact_coverage_incremental(
+                self.case,
+                new_conversation=new_slice,
+                atomic_facts=self.atomic_facts,
+                already_covered=sorted(self.covered_indices),
+            )
+            self._merge_delta(delta)
         self.last_history_len = len(conversation_history)
         snap = self.snapshot()
-        snap["turn"] = turn
-        snap["newly_covered_this_probe"] = delta.get("newly_covered") or []
+        if turn is not None:
+            snap["turn"] = turn
         return snap
 
-    def final_audit(self, conversation_history: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """End-of-encounter pass for human-readable summary (full dialogue)."""
-        remaining = [i for i in range(1, self.total_facts + 1) if i not in self.covered_indices]
-        if remaining:
-            tail = conversation_history[self.last_history_len :]
-            if tail:
-                delta = self.judge.probe_fact_coverage_incremental(
-                    self.case,
-                    new_conversation=tail,
-                    atomic_facts=self.atomic_facts,
-                    already_covered=sorted(self.covered_indices),
-                )
-                self._merge_delta(delta)
-            if remaining:
-                full_delta = self.judge.probe_fact_coverage_incremental(
-                    self.case,
-                    new_conversation=conversation_history,
-                    atomic_facts=self.atomic_facts,
-                    already_covered=sorted(self.covered_indices),
-                    review_mode=True,
-                )
-                self._merge_delta(full_delta)
-        self.last_history_len = len(conversation_history)
+    def seed_context_coverage(
+        self,
+        conversation_history: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Apply chief-complaint / doctor-opening facts before dialogue probes."""
+        delta = self.judge.probe_context_atomic_facts(
+            self.case,
+            atomic_facts=self.atomic_facts,
+            already_covered=sorted(self.covered_indices),
+            conversation_history=conversation_history,
+        )
+        self._merge_delta(delta)
         return self.snapshot()
+
+    def final_audit(self, conversation_history: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Flush any remaining dialogue, then return snapshot."""
+        return self.probe_pending(conversation_history)
 
     def _merge_delta(self, delta: Dict[str, Any]) -> None:
         for item in delta.get("newly_covered") or []:
@@ -162,6 +164,11 @@ class CoverageSession:
                     "index": idx,
                     "fact": fact_text,
                     "patient_evidence": str(item.get("patient_evidence") or ""),
+                    **(
+                        {"evidence_source": item["evidence_source"]}
+                        if item.get("evidence_source")
+                        else {}
+                    ),
                 }
             )
 
@@ -192,7 +199,9 @@ def write_coverage_summary(
         lines.append(f"  [{item.get('index')}] {item.get('fact')}")
         evidence = item.get("patient_evidence")
         if evidence:
-            lines.append(f"      Patient evidence: {evidence}")
+            source = item.get("evidence_source")
+            suffix = f" [{source}]" if source else ""
+            lines.append(f"      Evidence{suffix}: {evidence}")
     uncovered = set(range(1, int(coverage.get("total_facts") or 0) + 1)) - {
         int(x.get("index")) for x in (coverage.get("covered_facts") or []) if x.get("index")
     }

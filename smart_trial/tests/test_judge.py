@@ -108,3 +108,106 @@ def test_sanitize_coverage_delta_requires_patient_quote():
         new_conversation=conversation,
     )
     assert result["newly_covered"] == []
+
+
+def test_sanitize_coverage_delta_rejects_lab_mismatch():
+    judge = StageJudge(ModelClient("mock", "mock"))
+    atomic_facts = ["Culture of joint fluid shows a bacteria."]
+    conversation = [
+        {"role": "user", "content": "I haven't really noticed anything weird when I pee."},
+    ]
+    parsed = {
+        "newly_covered": [
+            {
+                "index": 1,
+                "fact": "Culture of joint fluid shows a bacteria.",
+                "patient_evidence": "I haven't really noticed anything weird when I pee.",
+            }
+        ]
+    }
+    result = judge._sanitize_coverage_delta(
+        parsed,
+        atomic_facts,
+        covered_set=set(),
+        new_conversation=conversation,
+    )
+    assert result["newly_covered"] == []
+
+
+def test_filter_scorable_atomic_facts_excludes_physician_orders():
+    from smart_trial.core.judge import filter_scorable_atomic_facts
+
+    facts = filter_scorable_atomic_facts(
+        [
+            "Patient has fever.",
+            "Physician orders antibiotic therapy for the patient.",
+            "Culture positive.",
+        ]
+    )
+    assert len(facts) == 2
+    assert all("Physician orders" not in f for f in facts)
+
+
+def test_context_coverage_matches_chief_complaint_demographics():
+    from smart_trial.core.coverage import CoverageSession
+    from smart_trial.core.judge import StageJudge
+
+    case = {
+        "case_id": "ctx_demo",
+        "chief_complaint": (
+            "A 21-year-old sexually active male complains of fever, pain during urination, "
+            "and inflammation and pain in the right knee."
+        ),
+        "atomic_facts": [
+            "Patient is a 21-year-old male.",
+            "Patient is sexually active.",
+            "Patient complains of fever.",
+            "Culture of joint fluid shows a bacteria.",
+        ],
+    }
+    history = [
+        {
+            "role": "assistant",
+            "content": (
+                "Hello, I'm your doctor today. A 21-year-old sexually active male complains of "
+                "fever, pain during urination, and inflammation and pain in the right knee."
+            ),
+        },
+        {"role": "user", "content": "Okay."},
+    ]
+    session = CoverageSession(StageJudge(ModelClient("mock", "mock")), case, threshold=0.5, check_every=5)
+    session.seed_context_coverage(history)
+    covered = {item["index"] for item in session.covered_facts}
+    assert 1 in covered
+    assert 2 in covered
+    assert 3 in covered
+    assert 4 not in covered
+    assert session.covered_facts[0].get("evidence_source") == "context"
+
+
+def test_probe_pending_flushes_between_checks():
+    from smart_trial.core.coverage import CoverageSession
+    from smart_trial.core.judge import StageJudge
+
+    case = {
+        "case_id": "flush",
+        "chief_complaint": "fever",
+        "atomic_facts": ["f1", "f2", "f3", "f4", "f5"],
+    }
+    session = CoverageSession(StageJudge(ModelClient("mock", "mock")), case, threshold=0.5, check_every=5)
+    hist = [{"role": "assistant", "content": "Hi?"}, {"role": "user", "content": "Day 1."}]
+    session.probe_if_due(5, hist)
+    after_first = session.coverage_count
+    hist.append({"role": "assistant", "content": "More?"})
+    hist.append({"role": "user", "content": "Day 2."})
+    session.probe_pending(hist, turn=6)
+    assert session.coverage_count >= after_first
+
+
+def test_evasive_evidence_allows_substantive_lab_reply():
+    judge = StageJudge(ModelClient("mock", "mock"))
+    evidence = (
+        "Why does that matter? From what I remember, I don't think the bacteria "
+        "from my cultures ferments maltose."
+    )
+    assert judge._is_evasive_evidence(evidence) is False

@@ -100,9 +100,10 @@ def test_adaptive_stage1_stops_on_coverage():
 
         stage1_turns = [t for t in traj["trajectory"] if t.get("stage") == 1]
         assert traj["rounds_mode"] == "adaptive"
-        assert traj["stage1_turns_used"] == 5
+        assert traj["stage1_turns_used"] <= 5
         assert traj.get("stage1_early_stop") == "fact_coverage"
-        assert len(stage1_turns) == 5
+        assert len(stage1_turns) == traj["stage1_turns_used"]
+        assert traj["R1"]["coverage_rate"] >= 0.40
         assert "final_coverage_rate" in traj
 
 

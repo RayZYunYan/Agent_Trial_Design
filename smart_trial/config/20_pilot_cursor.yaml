@@ -66,11 +66,12 @@ rag:
 mediq:
   enabled: true
   expert_class: "BasicExpert"
-  rationale_generation: false
+  rationale_generation: true
   self_consistency: 1
   stage1_suppress_answer: true
   stage2_allow_mcq_finalize: true
+  shadow_choice_enabled: false
 
 logging:
-  output_dir: "smart_trial/outputs/20_pilot"
-  aggregate_filename: "20_pilot_cursor_encounters.jsonl"
+  output_dir: "smart_trial/outputs"
+  aggregate_filename: "details_cursor.jsonl"
