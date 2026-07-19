@@ -1,11 +1,14 @@
-import torch
 import logging
+import os
 from keys import mykey
 
 # A dictionary to cache models and tokenizers to avoid reloading
 
 global models
 models = {}
+
+_API_BACKENDS = ("openai", "groq", "anthropic")
+
 
 def log_info(message, logger_name="message_logger", print_to_std=False, mode="info"):
     logger = logging.getLogger(logger_name)
@@ -14,6 +17,24 @@ def log_info(message, logger_name="message_logger", print_to_std=False, mode="in
         if mode == "warning": logger.warning(message)
         else: logger.info(message)
     if print_to_std: print(message + "\n")
+
+
+def infer_use_api(model_name, use_api=None):
+    """Pick API backend from model id so expert/patient can differ in one run."""
+    name = (model_name or "").lower()
+    if "claude" in name:
+        return "anthropic"
+    if (
+        "gpt" in name
+        or name.startswith("o1")
+        or name.startswith("o3")
+        or name.startswith("o4")
+    ):
+        return "openai"
+    if use_api in _API_BACKENDS:
+        return use_api
+    return use_api
+
 
 class ModelCache:
     def __init__(self, model_name, use_vllm=False, use_api=None, **kwargs):
@@ -31,7 +52,22 @@ class ModelCache:
         if self.use_api == "openai":
             from openai import OpenAI
             self.api_account = self.args.get("api_account", "openai")
-            self.client = OpenAI(api_key=mykey[self.api_account]) # Setup API key appropriately in keys.py
+            key = mykey.get(self.api_account) or mykey.get("openai") or ""
+            if not key:
+                raise ValueError("OPENAI_API_KEY missing in .env (needed for OpenAI models)")
+            self.client = OpenAI(api_key=key)
+        elif self.use_api == "groq":
+            from groq import Groq
+            key = mykey.get("groq") or ""
+            if not key:
+                raise ValueError("GROQ_API_KEY missing in .env (needed for --use_api groq)")
+            self.client = Groq(api_key=key)
+        elif self.use_api == "anthropic":
+            import anthropic
+            key = mykey.get("anthropic") or os.environ.get("ANTHROPIC_API_KEY") or ""
+            if not key:
+                raise ValueError("ANTHROPIC_API_KEY missing in .env (needed for Claude models)")
+            self.client = anthropic.Anthropic(api_key=key)
         elif self.use_vllm:
             try:
                 from vllm import LLM
@@ -45,7 +81,7 @@ class ModelCache:
             except Exception as e:
                 log_info(f"[ERROR] [{self.model_name}]: If using a custom local model, it is not compatible with VLLM, will load using Huggingfcae and you can ignore this error: {str(e)}", mode="error")
                 self.use_vllm = False
-        if not self.use_vllm and self.use_api != "openai":
+        if not self.use_vllm and self.use_api not in _API_BACKENDS:
             from transformers import AutoModelForCausalLM, AutoTokenizer
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
             self.model = AutoModelForCausalLM.from_pretrained(self.model_name)
@@ -62,9 +98,13 @@ class ModelCache:
         self.top_p = self.args.get("top_p", 0.9)
         self.top_logprobs = self.args.get("top_logprobs", 0)
 
-        if self.use_api == "openai": self.openai_generate(messages)
-        elif self.use_vllm: return self.vllm_generate(messages)
-        else: return self.huggingface_generate(messages)
+        if self.use_api in ("openai", "groq"):
+            return self.openai_generate(messages)
+        if self.use_api == "anthropic":
+            return self.anthropic_generate(messages)
+        if self.use_vllm:
+            return self.vllm_generate(messages)
+        return self.huggingface_generate(messages)
     
     def huggingface_generate(self, messages):
         try:
@@ -119,40 +159,76 @@ class ModelCache:
         return response_text, logprobs, usage
 
     def openai_generate(self, messages):
-        if self.top_logprobs == 0:
-            response = self.client.chat.completions.create(
-                        model=self.model_name,
-                        messages=messages,
-                        temperature=self.temperature,
-                        max_tokens=self.max_tokens,
-                        top_p=self.top_p
-                    )
-        else:
-            response = self.client.chat.completions.create(
-                        model=self.model_name,
-                        messages=messages,
-                        temperature=self.temperature,
-                        max_tokens=self.max_tokens,
-                        top_p=self.top_p,
-                        logprobs=True, 
-                        top_logprobs=self.top_logprobs
-                    )
-        
-        num_input_tokens = response["usage"]["prompt_tokens"]
-        num_output_tokens = response["usage"]["completion_tokens"]
-        response_text = response.choices[0].text.strip()
-        log_probs = response.choices[0].logprobs.top_logprobs if self.top_logprobs > 0 else None
-        
-        log_info(f"[{self.model_name}][OUTPUT]: {response}")
+        kwargs = {
+            "model": self.model_name,
+            "messages": messages,
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+            "top_p": self.top_p,
+        }
+        if self.top_logprobs > 0:
+            kwargs["logprobs"] = True
+            kwargs["top_logprobs"] = self.top_logprobs
+        response = self.client.chat.completions.create(**kwargs)
+
+        num_input_tokens = response.usage.prompt_tokens
+        num_output_tokens = response.usage.completion_tokens
+        response_text = (response.choices[0].message.content or "").strip()
+        log_probs = None
+        if self.top_logprobs > 0 and response.choices[0].logprobs is not None:
+            log_probs = response.choices[0].logprobs.content
+
+        log_info(f"[{self.model_name}][OUTPUT]: {response_text}")
         return response_text, log_probs, {"input_tokens": num_input_tokens, "output_tokens": num_output_tokens}
+
+    def anthropic_generate(self, messages):
+        system_parts = []
+        converted = []
+        for m in messages:
+            role = m.get("role")
+            content = m.get("content") or ""
+            if role == "system":
+                system_parts.append(content)
+            elif role in ("user", "assistant"):
+                converted.append({"role": role, "content": content})
+            else:
+                converted.append({"role": "user", "content": content})
+
+        # Anthropic requires the first message to be from the user.
+        if converted and converted[0]["role"] != "user":
+            converted.insert(0, {"role": "user", "content": "(continue)"})
+
+        kwargs = {
+            "model": self.model_name,
+            "messages": converted,
+            "max_tokens": int(self.max_tokens),
+            "temperature": self.temperature,
+        }
+        if system_parts:
+            kwargs["system"] = "\n\n".join(system_parts)
+
+        response = self.client.messages.create(**kwargs)
+        chunks = []
+        for block in response.content:
+            text = getattr(block, "text", None)
+            if text:
+                chunks.append(text)
+        response_text = "".join(chunks).strip()
+        usage = {
+            "input_tokens": getattr(response.usage, "input_tokens", 0),
+            "output_tokens": getattr(response.usage, "output_tokens", 0),
+        }
+        log_info(f"[{self.model_name}][OUTPUT]: {response_text}")
+        return response_text, None, usage
 
 
 def get_response(messages, model_name, use_vllm=False, use_api=None, **kwargs):
-    if 'gpt' in model_name or 'o1' in model_name: use_api = "openai"
-    
-    model_cache = models.get(model_name, None)
+    use_api = infer_use_api(model_name, use_api)
+    cache_key = f"{use_api}:{model_name}"
+
+    model_cache = models.get(cache_key, None)
     if model_cache is None:
         model_cache = ModelCache(model_name, use_vllm=use_vllm, use_api=use_api, **kwargs)
-        models[model_name] = model_cache
+        models[cache_key] = model_cache
     
     return model_cache.generate(messages)

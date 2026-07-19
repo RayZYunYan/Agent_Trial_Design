@@ -1,0 +1,14 @@
+# MediQ experiment (API path) — install in a fresh venv on CARC / cloud:
+#   python -m venv .venv && source .venv/bin/activate   # Linux/CARC
+#   pip install -r requirements.txt
+#
+# Covers: mediq_experiment pipeline + upstream src/mediQ_benchmark.py (API only)
+#          + smart_trial StageJudge / ModelClient for coverage & cross-finalize.
+# Does NOT include local HF/vLLM weights stack (torch/transformers) — not needed for Groq/OpenAI/Anthropic APIs.
+
+pyyaml>=6.0
+python-dotenv>=1.0
+groq>=0.11
+openai>=1.50
+anthropic>=0.36
+tqdm>=4.66

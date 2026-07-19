@@ -30,7 +30,7 @@ def get_args():
     parser.add_argument('--independent_modules', action='store_true', help='Cognitive modules within the Expert dont see previous convo.')
 
     parser.add_argument('--use_vllm', action='store_true', help='Use the VLLM model for generating responses.')
-    parser.add_argument('--use_api', type=str, default=None, help='Use an API for generating responses.', choices=['openai']) # compatible with the OpenAI API for now
+    parser.add_argument('--use_api', type=str, default=None, help='Use an API for generating responses.', choices=['openai', 'groq', 'anthropic'])
     parser.add_argument('--temperature', type=float, default=0.6, help='Temperature for sampling from the model.')
     parser.add_argument('--top_p', type=float, default=0.9, help='Top p value for nucleus sampling.')
     parser.add_argument('--max_tokens', type=int, default=256, help='Maximum number of tokens to generate.')
@@ -39,8 +39,16 @@ def get_args():
     
     args =  parser.parse_args()
 
-    if args.log_filename: os.makedirs(os.path.dirname(args.log_filename), exist_ok=True)
-    if args.history_log_filename: os.makedirs(os.path.dirname(args.history_log_filename), exist_ok=True)
-    if args.detail_log_filename: os.makedirs(os.path.dirname(args.detail_log_filename), exist_ok=True)
-    if args.message_log_filename: os.makedirs(os.path.dirname(args.message_log_filename), exist_ok=True)
+    def _ensure_parent(path):
+        if not path:
+            return
+        parent = os.path.dirname(path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+
+    _ensure_parent(args.log_filename)
+    _ensure_parent(args.history_log_filename)
+    _ensure_parent(args.detail_log_filename)
+    _ensure_parent(args.message_log_filename)
+    _ensure_parent(args.output_filename)
     return args

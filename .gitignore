@@ -21,7 +21,7 @@ conda-env/
 #   smart_trial/data/red_flag_cache.json
 .env
 *.env
-src/keys.py
+# Old MediQ put secrets in keys.py; ours loads OPENAI_API_KEY from .env (safe to track).
 
 # Jupyter
 .ipynb_checkpoints/
@@ -46,6 +46,7 @@ src/keys.py
 smart_trial/outputs/*
 !smart_trial/outputs/encounters.jsonl
 smart_trial/q_learning/outputs/
+mediq_experiment/outputs/
 *.log
 *.log.*
 logs/

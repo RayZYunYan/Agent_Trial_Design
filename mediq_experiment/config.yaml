@@ -1,0 +1,41 @@
+# MediQ two-model experiment (hot-swap models + providers here).
+# Doctor A: GPT-5.4 | Doctor B: Claude Sonnet 4.6
+# Patient + Judge: Claude Haiku 4.5
+# Run:  python -m mediq_experiment.run_pipeline
+
+data:
+  source_path: "data/all_dev_good.jsonl"
+  max_cases: 2                       # raise / null for full runs
+
+mediq:
+  expert_class: "BasicExpert"
+  patient_class: "FactSelectPatient"
+  max_questions: 10
+  # Optional default; per-model provider is inferred from model id
+  # (gpt* → openai, claude* → anthropic) so mixed A/B runs work.
+  use_api: null
+  rationale_generation: true
+  self_consistency: 1
+  temperature: 0.6
+  max_tokens: 256
+
+models:
+  doctor_a:
+    provider: "openai"
+    name: "gpt-5.4"
+  doctor_b:
+    provider: "anthropic"
+    name: "claude-sonnet-4-6"
+  patient:
+    provider: "anthropic"
+    name: "claude-haiku-4-5"
+  judge:
+    provider: "anthropic"
+    name: "claude-haiku-4-5"
+    temperature: 0.1
+
+pipeline:
+  run_mediq: true
+  score_coverage: true
+  cross_finalize: true
+  output_dir: "mediq_experiment/outputs"
