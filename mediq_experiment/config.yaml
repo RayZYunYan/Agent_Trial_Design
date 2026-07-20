@@ -5,7 +5,9 @@
 
 data:
   source_path: "data/all_dev_good.jsonl"
-  max_cases: 2                       # raise / null for full runs
+  id_min: 100                        # inclusive
+  id_max: 199                        # inclusive → 100 cases
+  max_cases: null                    # null = all ids in [id_min, id_max]
 
 mediq:
   expert_class: "ScaleExpert"        # Interactive Best (not BasicExpert)

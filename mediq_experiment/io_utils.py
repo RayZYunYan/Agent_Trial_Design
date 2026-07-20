@@ -49,15 +49,32 @@ def append_jsonl(path: Path, row: Dict[str, Any]) -> None:
         f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
-def write_subset_jsonl(source: Path, dest: Path, max_cases: Optional[int]) -> Path:
-    """Copy first N cases (or all) for a MediQ run."""
+def write_subset_jsonl(
+    source: Path,
+    dest: Path,
+    max_cases: Optional[int] = None,
+    *,
+    id_min: Optional[int] = None,
+    id_max: Optional[int] = None,
+) -> Path:
+    """Filter cases by inclusive id range and/or take at most max_cases matches."""
     ensure_dir(dest.parent)
     count = 0
     with source.open(encoding="utf-8") as src, dest.open("w", encoding="utf-8") as out:
         for line in src:
             if not line.strip():
                 continue
-            out.write(line if line.endswith("\n") else line + "\n")
+            row = json.loads(line)
+            cid = row.get("id")
+            try:
+                cid_int = int(cid)
+            except (TypeError, ValueError):
+                continue
+            if id_min is not None and cid_int < int(id_min):
+                continue
+            if id_max is not None and cid_int > int(id_max):
+                continue
+            out.write(json.dumps(row, ensure_ascii=False) + "\n")
             count += 1
             if max_cases is not None and count >= int(max_cases):
                 break

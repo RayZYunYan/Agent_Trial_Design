@@ -66,6 +66,12 @@ def run_pipeline(config_path: Path, *, skip_mediq: bool = False) -> Dict[str, An
         raise FileNotFoundError(f"Data not found: {source}")
 
     max_cases = data_cfg.get("max_cases")
+    id_min = data_cfg.get("id_min")
+    id_max = data_cfg.get("id_max")
+    if id_min is not None:
+        id_min = int(id_min)
+    if id_max is not None:
+        id_max = int(id_max)
     output_dir = ensure_dir(ROOT / str(pipe_cfg.get("output_dir", "mediq_experiment/outputs")))
 
     doctor_a = _model_name(cfg, "doctor_a")
@@ -82,6 +88,8 @@ def run_pipeline(config_path: Path, *, skip_mediq: bool = False) -> Dict[str, An
         "config": str(config_path),
         "data": str(source),
         "max_cases": max_cases,
+        "id_min": id_min,
+        "id_max": id_max,
         "models": {
             "doctor_a": f"{provider_a}/{doctor_a}",
             "doctor_b": f"{provider_b}/{doctor_b}",
@@ -103,6 +111,8 @@ def run_pipeline(config_path: Path, *, skip_mediq: bool = False) -> Dict[str, An
             output_dir=output_dir,
             mediq_cfg=mediq_cfg,
             expert_provider=provider_a,
+            id_min=id_min,
+            id_max=id_max,
         )
         path_b = run_mediq_role(
             role_name="doctor_b",
@@ -113,6 +123,8 @@ def run_pipeline(config_path: Path, *, skip_mediq: bool = False) -> Dict[str, An
             output_dir=output_dir,
             mediq_cfg=mediq_cfg,
             expert_provider=provider_b,
+            id_min=id_min,
+            id_max=id_max,
         )
     else:
         if not path_a.exists() or not path_b.exists():

@@ -85,11 +85,19 @@ def run_mediq_role(
     output_dir: Path,
     mediq_cfg: Dict[str, Any],
     expert_provider: Optional[str] = None,
+    id_min: Optional[int] = None,
+    id_max: Optional[int] = None,
 ) -> Path:
     """Prepare subset, run MediQ from ``src/``, return results JSONL path."""
     run_dir = ensure_dir(output_dir / role_name)
     subset_path = run_dir / "cases_subset.jsonl"
-    write_subset_jsonl(source_data, subset_path, max_cases)
+    write_subset_jsonl(
+        source_data,
+        subset_path,
+        max_cases,
+        id_min=id_min,
+        id_max=id_max,
+    )
     out_jsonl = run_dir / "results.jsonl"
 
     # Resume-friendly: MediQ skips ids already in output. Delete to force re-run.
@@ -103,7 +111,10 @@ def run_mediq_role(
         mediq_cfg=mediq_cfg,
         expert_provider=expert_provider,
     )
-    print(f"\n=== MediQ run: {role_name} (doctor={expert_model}, provider={expert_provider}) ===")
+    print(
+        f"\n=== MediQ run: {role_name} (doctor={expert_model}, provider={expert_provider}, "
+        f"id_min={id_min}, id_max={id_max}) ==="
+    )
     print(" ".join(cmd))
     proc = subprocess.run(cmd, cwd=str(ROOT / "src"), check=False)
     if proc.returncode != 0:
