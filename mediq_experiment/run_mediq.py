@@ -61,6 +61,8 @@ def build_mediq_cmd(
         str(int(mediq_cfg.get("max_tokens", 256))),
         "--self_consistency",
         str(int(mediq_cfg.get("self_consistency", 1))),
+        "--abstain_threshold",
+        str(float(mediq_cfg.get("abstain_threshold", 4.0))),
         "--api_account",
         "mediQ",
     ]

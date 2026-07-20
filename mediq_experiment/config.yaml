@@ -1,4 +1,4 @@
-# MediQ two-model experiment (hot-swap models + providers here).
+# MediQ Interactive Best (paper): ScaleExpert + RG + SC=3, max_questions=30
 # Doctor A: GPT-5.4 | Doctor B: Claude Sonnet 4.6
 # Patient + Judge: Claude Haiku 4.5
 # Run:  python -m mediq_experiment.run_pipeline
@@ -8,16 +8,17 @@ data:
   max_cases: 2                       # raise / null for full runs
 
 mediq:
-  expert_class: "BasicExpert"
+  expert_class: "ScaleExpert"        # Interactive Best (not BasicExpert)
   patient_class: "FactSelectPatient"
-  max_questions: 10
+  max_questions: 30                  # MediQ default hard cap
+  abstain_threshold: 4.0             # Scale Likert: answer only if conf >= 4
   # Optional default; per-model provider is inferred from model id
   # (gpt* → openai, claude* → anthropic) so mixed A/B runs work.
   use_api: null
   rationale_generation: true
-  self_consistency: 1
+  self_consistency: 3                # paper Interactive Best
   temperature: 0.6
-  max_tokens: 256
+  max_tokens: 512                    # Scale+RG needs a bit more room
 
 models:
   doctor_a:

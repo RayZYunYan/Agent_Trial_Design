@@ -163,13 +163,28 @@ class ModelCache:
             "model": self.model_name,
             "messages": messages,
             "temperature": self.temperature,
-            "max_tokens": self.max_tokens,
             "top_p": self.top_p,
         }
+        # GPT-5+ chat models reject max_tokens; use max_completion_tokens instead.
+        name = (self.model_name or "").lower()
+        if name.startswith("gpt-5") or name.startswith("o1") or name.startswith("o3") or name.startswith("o4"):
+            kwargs["max_completion_tokens"] = self.max_tokens
+        else:
+            kwargs["max_tokens"] = self.max_tokens
         if self.top_logprobs > 0:
             kwargs["logprobs"] = True
             kwargs["top_logprobs"] = self.top_logprobs
-        response = self.client.chat.completions.create(**kwargs)
+        try:
+            response = self.client.chat.completions.create(**kwargs)
+        except Exception as e:
+            # Fallback if temperature/top_p unsupported on reasoning models.
+            err = str(e).lower()
+            if "temperature" in err or "top_p" in err or "unsupported" in err:
+                kwargs.pop("temperature", None)
+                kwargs.pop("top_p", None)
+                response = self.client.chat.completions.create(**kwargs)
+            else:
+                raise
 
         num_input_tokens = response.usage.prompt_tokens
         num_output_tokens = response.usage.completion_tokens
