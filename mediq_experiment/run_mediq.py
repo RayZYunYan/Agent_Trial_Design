@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from mediq_experiment.io_utils import ROOT, ensure_dir, write_subset_jsonl
+from mediq_experiment.model_chat import api_use_flag
 
 
 def build_mediq_cmd(
@@ -66,10 +67,15 @@ def build_mediq_cmd(
         "--api_account",
         "mediQ",
     ]
-    # Prefer explicit doctor provider; helper also infers from model id for patient.
-    use_api = expert_provider or mediq_cfg.get("use_api")
+    # Only pass --use_api for API doctors. Local HF + Claude patient relies on
+    # helper.infer_use_api (claude→anthropic, llama→local).
+    use_api = api_use_flag(expert_provider) or api_use_flag(mediq_cfg.get("use_api"))
     if use_api:
         cmd.extend(["--use_api", str(use_api)])
+    elif mediq_cfg.get("use_vllm", False):
+        cmd.append("--use_vllm")
+    if mediq_cfg.get("load_in_4bit", False):
+        cmd.append("--load_in_4bit")
     if mediq_cfg.get("rationale_generation", True):
         cmd.append("--rationale_generation")
     return cmd

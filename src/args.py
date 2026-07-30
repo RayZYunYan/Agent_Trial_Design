@@ -30,6 +30,11 @@ def get_args():
     parser.add_argument('--independent_modules', action='store_true', help='Cognitive modules within the Expert dont see previous convo.')
 
     parser.add_argument('--use_vllm', action='store_true', help='Use the VLLM model for generating responses.')
+    parser.add_argument(
+        '--load_in_4bit',
+        action='store_true',
+        help='Load local HF weights in 4-bit (transformers fallback only; ignored by vLLM).',
+    )
     parser.add_argument('--use_api', type=str, default=None, help='Use an API for generating responses.', choices=['openai', 'groq', 'anthropic'])
     parser.add_argument('--temperature', type=float, default=0.6, help='Temperature for sampling from the model.')
     parser.add_argument('--top_p', type=float, default=0.9, help='Top p value for nucleus sampling.')

@@ -72,23 +72,56 @@ class ModelCache:
             try:
                 from vllm import LLM
                 enable_prefix_caching = self.args.get("enable_prefix_caching", False)
-                self.model = LLM(model=self.model_name, enable_prefix_caching=enable_prefix_caching)
+                dtype = self.args.get("dtype", "auto")
+                self.model = LLM(
+                    model=self.model_name,
+                    enable_prefix_caching=enable_prefix_caching,
+                    dtype=dtype,
+                )
                 from transformers import AutoTokenizer
                 self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
                 self.tokenizer.pad_token = self.tokenizer.eos_token
                 self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
-                self.terminators = [self.tokenizer.eos_token_id, self.tokenizer.convert_tokens_to_ids("<|eot_id|>")]
+                eot = self.tokenizer.convert_tokens_to_ids("<|eot_id|>")
+                self.terminators = [self.tokenizer.eos_token_id]
+                if eot is not None and eot != self.tokenizer.unk_token_id:
+                    self.terminators.append(eot)
             except Exception as e:
                 log_info(f"[ERROR] [{self.model_name}]: If using a custom local model, it is not compatible with VLLM, will load using Huggingfcae and you can ignore this error: {str(e)}", mode="error")
                 self.use_vllm = False
         if not self.use_vllm and self.use_api not in _API_BACKENDS:
             from transformers import AutoModelForCausalLM, AutoTokenizer
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-            self.model = AutoModelForCausalLM.from_pretrained(self.model_name)
-            self.model.eval()  # Set the model to evaluation mode
+            load_kwargs = {
+                "device_map": self.args.get("device_map", "auto"),
+                "torch_dtype": "auto",
+            }
+            load_in_4bit = self.args.get("load_in_4bit", False)
+            if isinstance(load_in_4bit, str):
+                load_in_4bit = load_in_4bit.strip().lower() in ("1", "true", "yes")
+            if not load_in_4bit:
+                load_in_4bit = os.environ.get("HF_LOAD_IN_4BIT", "").strip().lower() in (
+                    "1",
+                    "true",
+                    "yes",
+                )
+            if load_in_4bit:
+                try:
+                    from transformers import BitsAndBytesConfig
+                    load_kwargs["quantization_config"] = BitsAndBytesConfig(load_in_4bit=True)
+                except Exception as e:
+                    log_info(
+                        f"[{self.model_name}]: 4-bit load requested but bitsandbytes unavailable ({e}); loading full precision.",
+                        mode="warning",
+                    )
+            self.model = AutoModelForCausalLM.from_pretrained(self.model_name, **load_kwargs)
+            self.model.eval()
             self.tokenizer.pad_token = self.tokenizer.eos_token
             self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
-            self.terminators = [self.tokenizer.eos_token_id, self.tokenizer.convert_tokens_to_ids("<|eot_id|>")]
+            eot = self.tokenizer.convert_tokens_to_ids("<|eot_id|>")
+            self.terminators = [self.tokenizer.eos_token_id]
+            if eot is not None and eot != self.tokenizer.unk_token_id:
+                self.terminators.append(eot)
     
     def generate(self, messages):
         log_info(f"[{self.model_name}][INPUT]: {messages}")
@@ -105,25 +138,39 @@ class ModelCache:
         if self.use_vllm:
             return self.vllm_generate(messages)
         return self.huggingface_generate(messages)
+
+    def _input_device(self):
+        try:
+            return next(self.model.parameters()).device
+        except Exception:
+            return getattr(self.model, "device", "cpu")
     
     def huggingface_generate(self, messages):
+        device = self._input_device()
         try:
-            inputs = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors="pt").to(self.model.device)
-        except:
+            inputs = self.tokenizer.apply_chat_template(
+                messages, add_generation_prompt=True, return_tensors="pt"
+            ).to(device)
+        except Exception:
             # Join messages into a single prompt for general language models
             log_info(f"[{self.model_name}]: Could not apply chat template to messages.", mode="warning")
             prompt = "\n\n".join([m['content'] for m in messages])
-            inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+            inputs = self.tokenizer(prompt, return_tensors="pt").to(device)
 
-        outputs = self.model.generate(
-            inputs,
-            do_sample=True,
-            max_new_tokens=self.max_tokens, 
-            temperature=self.temperature,
-            top_p=self.top_p,
-            pad_token_id=self.tokenizer.pad_token_id,
-            eos_token_id=self.terminators
-        )
+        gen_kwargs = {
+            "max_new_tokens": self.max_tokens,
+            "pad_token_id": self.tokenizer.pad_token_id,
+            "eos_token_id": self.terminators,
+        }
+        # temperature=0 → greedy (cross-finalize / deterministic)
+        if self.temperature is not None and float(self.temperature) <= 0:
+            gen_kwargs["do_sample"] = False
+        else:
+            gen_kwargs["do_sample"] = True
+            gen_kwargs["temperature"] = max(float(self.temperature), 1e-5)
+            gen_kwargs["top_p"] = self.top_p
+
+        outputs = self.model.generate(inputs, **gen_kwargs)
         # TODO: If top_logprobs > 0, return logprobs of generation
         response_text = self.tokenizer.decode(outputs[0][inputs.shape[-1]:], skip_special_tokens=True)
         usage = {"input_tokens": inputs.shape[-1], "output_tokens": outputs.shape[-1]-inputs.shape[-1]}
@@ -135,17 +182,33 @@ class ModelCache:
     def vllm_generate(self, messages):
         try:
             inputs = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
-        except:
+        except Exception:
             # Join messages into a single prompt for general language models
             log_info(f"[{self.model_name}]: Could not apply chat template to messages.", mode="warning")
             inputs = "\n\n".join([m['content'] for m in messages])
-            # inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
 
         from vllm import SamplingParams
         frequency_penalty = self.args.get("frequency_penalty", 0)
         presence_penalty = self.args.get("presense_penalty", 0)
-        sampling_params = SamplingParams(temperature=self.temperature, max_tokens=self.max_tokens, top_p=self.top_p, logprobs=self.top_logprobs, 
-                                        frequency_penalty=frequency_penalty, presence_penalty=presence_penalty)
+        temp = float(self.temperature) if self.temperature is not None else 0.6
+        if temp <= 0:
+            sampling_params = SamplingParams(
+                temperature=0.0,
+                max_tokens=self.max_tokens,
+                top_p=1.0,
+                logprobs=self.top_logprobs or None,
+                frequency_penalty=frequency_penalty,
+                presence_penalty=presence_penalty,
+            )
+        else:
+            sampling_params = SamplingParams(
+                temperature=temp,
+                max_tokens=self.max_tokens,
+                top_p=self.top_p,
+                logprobs=self.top_logprobs or None,
+                frequency_penalty=frequency_penalty,
+                presence_penalty=presence_penalty,
+            )
         
         outputs = self.model.generate(inputs, sampling_params)
         response_text = outputs[0].outputs[0].text
@@ -239,11 +302,13 @@ class ModelCache:
 
 def get_response(messages, model_name, use_vllm=False, use_api=None, **kwargs):
     use_api = infer_use_api(model_name, use_api)
-    cache_key = f"{use_api}:{model_name}"
+    # API backends ignore vLLM; keep cache key stable across mixed expert/patient runs.
+    effective_vllm = bool(use_vllm) and use_api not in _API_BACKENDS
+    cache_key = f"{use_api}:vllm={effective_vllm}:{model_name}"
 
     model_cache = models.get(cache_key, None)
     if model_cache is None:
-        model_cache = ModelCache(model_name, use_vllm=use_vllm, use_api=use_api, **kwargs)
+        model_cache = ModelCache(model_name, use_vllm=effective_vllm, use_api=use_api, **kwargs)
         models[cache_key] = model_cache
     
     return model_cache.generate(messages)

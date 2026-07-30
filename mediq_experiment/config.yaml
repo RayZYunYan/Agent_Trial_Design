@@ -1,7 +1,11 @@
-# MediQ Interactive Best (paper): ScaleExpert + RG + SC=3, max_questions=30
-# Doctor A: GPT-5.4 | Doctor B: Claude Sonnet 4.6
+# MediQ Interactive Best: ScaleExpert + RG + SC=3, max_questions=30
+# Doctors A/B: API (GPT / Claude) | C/D/E: local HF (vLLM on CARC)
 # Patient + Judge: Claude Haiku 4.5
 # Run:  python -m mediq_experiment.run_pipeline
+#
+# HF_HOME (CARC model cache):
+#   /project2/ruishanl_1185/proj-26su-agent-trial-design/Ray/Agent_Trial_Design/model
+#   export HF_HOME=...  (also set in run.sh / slurm_mediq_ae.sh)
 
 data:
   source_path: "data/all_dev_good.jsonl"
@@ -14,9 +18,12 @@ mediq:
   patient_class: "FactSelectPatient"
   max_questions: 30                  # MediQ default hard cap
   abstain_threshold: 4.0             # Scale Likert: answer only if conf >= 4
-  # Optional default; per-model provider is inferred from model id
-  # (gpt* → openai, claude* → anthropic) so mixed A/B runs work.
+  # Optional default API for unknown ids; per-model provider wins.
+  # Mixed API + local: do not set use_api globally when running HF doctors.
   use_api: null
+  # Local HF doctors (C/D/E): prefer vLLM on CARC; falls back to transformers.
+  use_vllm: true
+  load_in_4bit: false                # transformers fallback only; vLLM ignores this
   rationale_generation: true
   self_consistency: 3                # paper Interactive Best
   temperature: 0.6
@@ -29,6 +36,15 @@ models:
   doctor_b:
     provider: "anthropic"
     name: "claude-sonnet-4-6"
+  doctor_c:
+    provider: "huggingface"
+    name: "meta-llama/Llama-3.1-8B-Instruct"
+  doctor_d:
+    provider: "huggingface"
+    name: "Qwen/Qwen2.5-7B-Instruct"
+  doctor_e:
+    provider: "huggingface"
+    name: "aaditya/Llama3-OpenBioLLM-8B"
   patient:
     provider: "anthropic"
     name: "claude-haiku-4-5"
@@ -41,4 +57,5 @@ pipeline:
   run_mediq: true
   score_coverage: true
   cross_finalize: true
+  skip_existing: true                # skip non-empty results/scored/cross files
   output_dir: "mediq_experiment/outputs"

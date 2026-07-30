@@ -95,8 +95,29 @@ def score_file(
     judge_provider: str,
     judge_model: str,
     judge_temperature: float = 0.1,
+    skip_if_exists: bool = False,
 ) -> Dict[str, Any]:
     load_dotenv(ROOT / ".env")
+    if skip_if_exists and output_path.exists() and output_path.stat().st_size > 0:
+        scored = read_jsonl(output_path)
+        rates = [
+            float(r["eval"]["fact_coverage"]["coverage_rate"])
+            for r in scored
+            if r.get("eval", {}).get("fact_coverage", {}).get("coverage_rate") is not None
+        ]
+        summary = {
+            "n": len(scored),
+            "final_accuracy": accuracy_summary(
+                [{"correct": r["eval"]["final_accuracy"]} for r in scored]
+            ),
+            "mean_fact_coverage": (sum(rates) / len(rates)) if rates else None,
+            "input": str(input_path),
+            "output": str(output_path),
+            "skipped": True,
+        }
+        print(f"  skip coverage (exists): {output_path}")
+        return summary
+
     judge = StageJudge(ModelClient(judge_provider, judge_model, temperature=judge_temperature))
     rows = read_jsonl(input_path)
     scored = [score_row(judge, row) for row in rows]
@@ -115,6 +136,7 @@ def score_file(
         "mean_fact_coverage": (sum(rates) / len(rates)) if rates else None,
         "input": str(input_path),
         "output": str(output_path),
+        "skipped": False,
     }
     return summary
 

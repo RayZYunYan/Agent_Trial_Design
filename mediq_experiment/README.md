@@ -1,91 +1,126 @@
-# MediQ two-model experiment (upstream MediQ + end-of-case coverage + cross finalize)
+# MediQ multi-doctor experiment (A–E + coverage + full cross)
 
 ## What this does
 
-1. Runs **upstream** `src/mediQ_benchmark.py` twice (doctor A, doctor B).
-2. After each case dialogue ends, scores **Final Accuracy** + **Fact Coverage** (one judge call per case).
-3. **Cross finalize**: A’s transcript → B answers MCQ once; B’s transcript → A answers once.
+1. Runs upstream `src/mediQ_benchmark.py` for each `doctor_*` in config (A–E).
+2. After each case dialogue ends, scores **Final Accuracy** + **Fact Coverage** (Haiku judge).
+3. **Full cross finalize**: every doctor’s transcript → every *other* doctor answers the MCQ once.
 
 SMART arms / RAG / adaptive rounds are **not** used.
 
+Default doctors:
+
+| Role | Provider | Model |
+|------|----------|--------|
+| A | OpenAI | `gpt-5.4` |
+| B | Anthropic | `claude-sonnet-4-6` |
+| C | Hugging Face (local/vLLM) | `meta-llama/Llama-3.1-8B-Instruct` |
+| D | Hugging Face (local/vLLM) | `Qwen/Qwen2.5-7B-Instruct` |
+| E | Hugging Face (local/vLLM) | `aaditya/Llama3-OpenBioLLM-8B` |
+| Patient / Judge | Anthropic | `claude-haiku-4-5` |
+
 ## Setup
 
-1. Create a venv and install deps (API-only; no torch):
+### API keys (repo-root `.env`)
+
+```
+OPENAI_API_KEY=...                 # doctor A
+ANTHROPIC_API_KEY=...              # doctor B / patient / judge
+```
+
+### Local / CARC open-source doctors (C/D/E)
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -U "huggingface_hub" torch transformers accelerate
+# CARC performance path:
+pip install vllm
+# optional transformers fallback on small GPUs:
+pip install bitsandbytes
 ```
 
-2. Put API keys in repo-root `.env` (copy from `.envExample`):
+Login (new CLI):
 
-```
-OPENAI_API_KEY=...                 # doctor A (GPT)
-ANTHROPIC_API_KEY=...              # doctor B / patient / judge (Claude)
-GROQ_API_KEY=...                   # optional local smoke
-```
-
-3. Edit `mediq_experiment/config.yaml` — current defaults:
-
-```yaml
-models:
-  doctor_a:
-    provider: "openai"
-    name: "gpt-5.4"
-  doctor_b:
-    provider: "anthropic"
-    name: "claude-sonnet-4-6"
-  patient:
-    provider: "anthropic"
-    name: "claude-haiku-4-5"
-  judge:
-    provider: "anthropic"
-    name: "claude-haiku-4-5"
+```bash
+hf auth login
+hf auth whoami
 ```
 
-Mixed OpenAI+Anthropic in one MediQ run is supported (`src/helper.py` infers backend from model id).
+In the browser, **Agree** to gated licenses for Llama and OpenBioLLM.
 
-4. Optionally set `data.max_cases` (e.g. `5` for a smoke test; `null` for all).
+### Download models on CARC
+
+Cache directory (already wired into `run.sh` / `slurm_mediq_ae.sh`):
+
+```bash
+export HF_HOME=/project2/ruishanl_1185/proj-26su-agent-trial-design/Ray/Agent_Trial_Design/model
+mkdir -p "$HF_HOME"
+
+hf download meta-llama/Llama-3.1-8B-Instruct
+hf download Qwen/Qwen2.5-7B-Instruct
+hf download aaditya/Llama3-OpenBioLLM-8B
+
+# optional size check
+hf download meta-llama/Llama-3.1-8B-Instruct --dry-run
+```
+
+Jobs pick up the same `HF_HOME` automatically unless you override it.
 
 ## One-click run
 
 From repo root:
 
-```powershell
+```bash
+# Linux / CARC
+bash mediq_experiment/run.sh
+
+# or
 python -m mediq_experiment.run_pipeline
-```
 
-Or:
-
-```powershell
+# Windows
 .\mediq_experiment\run.ps1
 ```
 
-Outputs land in `mediq_experiment/outputs/`:
+**Skip existing artifacts** (`pipeline.skip_existing: true`):
 
-| Path | Content |
-|------|---------|
-| `doctor_a/results.jsonl` | MediQ dialogues + letter accuracy (A) |
-| `doctor_b/results.jsonl` | MediQ dialogues + letter accuracy (B) |
-| `doctor_a/scored.jsonl` | + end-of-case fact coverage |
-| `doctor_b/scored.jsonl` | + end-of-case fact coverage |
-| `cross/a_transcript_b_answers.jsonl` | A dialogue → B final answer |
-| `cross/b_transcript_a_answers.jsonl` | B dialogue → A final answer |
-| `summary.json` | Aggregate metrics |
+- Non-empty `doctor_*/results.jsonl` → skip MediQ for that doctor (keeps prior A/B runs).
+- Non-empty `doctor_*/scored.jsonl` → skip Haiku coverage.
+- Non-empty `cross/{src}_transcript_{dst}_answers.jsonl` → skip that pair (legacy `a_transcript_b_answers.jsonl` still valid).
 
-## Resume / re-score only
+`summary.json` is **rewritten** each run with A–E self metrics + all cross pairs; raw JSONL files are not deleted.
 
-MediQ skips case ids already present in `results.jsonl`. To re-score without re-running dialogues:
+Only re-score / re-cross:
 
-```powershell
+```bash
 python -m mediq_experiment.run_pipeline --skip-mediq
 ```
 
+## CARC job
+
+```bash
+# Edit HF_HOME inside the script first, then:
+sbatch mediq_experiment/slurm_mediq_ae.sh
+```
+
+Or interactively on a GPU node (after `export HF_HOME=...`):
+
+```bash
+bash mediq_experiment/run.sh
+```
+
+Single-GPU is enough for 7B/8B + vLLM; wall time can be long (SC=3, up to 30 turns, 100 cases × 3 local doctors + cross).
+
+## Outputs
+
+| Path | Content |
+|------|---------|
+| `doctor_a`…`doctor_e/results.jsonl` | MediQ dialogues + letter accuracy |
+| `doctor_*/scored.jsonl` | + end-of-case fact coverage |
+| `cross/{x}_transcript_{y}_answers.jsonl` | x dialogue → y final answer |
+| `summary.json` | Aggregate self + cross metrics |
+
 ## Notes
 
-- Patient class: `FactSelectPatient` (MediQ). Precomputed `facts` in your JSONL are used when present.
-- Fact coverage uses your existing `StageJudge` **once per finished case** (`review_mode`).
-- Models are config-only; no code change needed when you pick final model names.
-- `use_api: groq|openai|anthropic` supported; Claude/GPT mixed runs work via model-id inference.
-- Default config: doctor A=`gpt-5.4`, doctor B=`claude-sonnet-4-6`, patient/judge=`claude-haiku-4-5`.
+- Patient class: `FactSelectPatient`. Precomputed `facts` in JSONL are used when present.
+- Local doctors: `mediq.use_vllm: true` (default). If vLLM fails to load, MediQ helper falls back to transformers (`device_map=auto`; optional `load_in_4bit`).
+- Fine-tuning later: reuse the same `HF_HOME` weights with transformers/PEFT (not vLLM).
+- Data batch: `id_min`/`id_max` 100–199 (same as prior A/B).
