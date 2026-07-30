@@ -9,26 +9,14 @@
 #SBATCH --account=ruishanl_1185
 #SBATCH --partition=main
 #
-# USC CARC — MediQ multi-doctor (A–E). Skips non-empty A/B artifacts by default.
-#
-# Before first run:
-#   1. hf auth login && hf download the three local models into HF_HOME (see README)
-#   2. Ensure .env has OPENAI_API_KEY + ANTHROPIC_API_KEY
-# HF_HOME default:
-#   /project2/ruishanl_1185/proj-26su-agent-trial-design/Ray/Agent_Trial_Design/model
-#
+# Full MediQ A–E (100 cases). Prefer smoke first: slurm_mediq_smoke.sh
 #   sbatch mediq_experiment/slurm_mediq_ae.sh
-#
-# Interactive alternative (GPU node):
-#   export HF_HOME=...
-#   bash mediq_experiment/run.sh
 
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 mkdir -p mediq_experiment/outputs/logs
 
-# Model weights / Hugging Face cache (project disk)
 export HF_HOME="${HF_HOME:-/project2/ruishanl_1185/proj-26su-agent-trial-design/Ray/Agent_Trial_Design/model}"
 mkdir -p "$HF_HOME"
 
@@ -44,5 +32,6 @@ if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
   exit 1
 fi
 
-echo "MediQ A–E | HF_HOME=$HF_HOME | cwd=$ROOT"
+echo "FULL A–E | HF_HOME=$HF_HOME | cwd=$ROOT"
+python -m mediq_experiment.check_setup --config mediq_experiment/config.yaml --require-models
 python -m mediq_experiment.run_pipeline --config mediq_experiment/config.yaml

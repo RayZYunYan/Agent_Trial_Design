@@ -1,0 +1,56 @@
+# Smoke / dry-run config: 1 case, shorter dialogue, separate output dir.
+# Does NOT touch mediq_experiment/outputs (keeps full A–E results safe).
+#
+#   bash mediq_experiment/run_smoke.sh
+#   sbatch mediq_experiment/slurm_mediq_smoke.sh
+#   python -m mediq_experiment.run_pipeline --config mediq_experiment/config_smoke.yaml
+
+data:
+  source_path: "data/all_dev_good.jsonl"
+  id_min: 100
+  id_max: 199
+  max_cases: 1                       # single case smoke
+
+mediq:
+  expert_class: "ScaleExpert"
+  patient_class: "FactSelectPatient"
+  max_questions: 8                   # shorter than full 30
+  abstain_threshold: 4.0
+  use_api: null
+  use_vllm: true
+  load_in_4bit: false
+  rationale_generation: true
+  self_consistency: 1                # faster smoke (full uses 3)
+  temperature: 0.6
+  max_tokens: 512
+
+models:
+  doctor_a:
+    provider: "openai"
+    name: "gpt-5.4"
+  doctor_b:
+    provider: "anthropic"
+    name: "claude-sonnet-4-6"
+  doctor_c:
+    provider: "huggingface"
+    name: "google/gemma-2-9b-it"
+  doctor_d:
+    provider: "huggingface"
+    name: "Qwen/Qwen2.5-7B-Instruct"
+  doctor_e:
+    provider: "huggingface"
+    name: "aaditya/Llama3-OpenBioLLM-8B"
+  patient:
+    provider: "anthropic"
+    name: "claude-haiku-4-5"
+  judge:
+    provider: "anthropic"
+    name: "claude-haiku-4-5"
+    temperature: 0.1
+
+pipeline:
+  run_mediq: true
+  score_coverage: true
+  cross_finalize: true
+  skip_existing: true
+  output_dir: "mediq_experiment/outputs_smoke"

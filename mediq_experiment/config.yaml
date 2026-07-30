@@ -1,11 +1,14 @@
 # MediQ Interactive Best: ScaleExpert + RG + SC=3, max_questions=30
 # Doctors A/B: API (GPT / Claude) | C/D/E: local HF (vLLM on CARC)
+#   C = Gemma 2 9B (replaces Llama pending access)
+#   D = Qwen2.5-7B | E = OpenBioLLM-8B
 # Patient + Judge: Claude Haiku 4.5
-# Run:  python -m mediq_experiment.run_pipeline
+# Full run:  python -m mediq_experiment.run_pipeline
+#            bash mediq_experiment/run.sh
+#            sbatch mediq_experiment/slurm_mediq_ae.sh
 #
 # HF_HOME (CARC model cache):
 #   /project2/ruishanl_1185/proj-26su-agent-trial-design/Ray/Agent_Trial_Design/model
-#   export HF_HOME=...  (also set in run.sh / slurm_mediq_ae.sh)
 
 data:
   source_path: "data/all_dev_good.jsonl"
@@ -18,16 +21,13 @@ mediq:
   patient_class: "FactSelectPatient"
   max_questions: 30                  # MediQ default hard cap
   abstain_threshold: 4.0             # Scale Likert: answer only if conf >= 4
-  # Optional default API for unknown ids; per-model provider wins.
-  # Mixed API + local: do not set use_api globally when running HF doctors.
   use_api: null
-  # Local HF doctors (C/D/E): prefer vLLM on CARC; falls back to transformers.
   use_vllm: true
-  load_in_4bit: false                # transformers fallback only; vLLM ignores this
+  load_in_4bit: false
   rationale_generation: true
-  self_consistency: 3                # paper Interactive Best
+  self_consistency: 3
   temperature: 0.6
-  max_tokens: 512                    # Scale+RG needs a bit more room
+  max_tokens: 512
 
 models:
   doctor_a:
@@ -38,7 +38,7 @@ models:
     name: "claude-sonnet-4-6"
   doctor_c:
     provider: "huggingface"
-    name: "meta-llama/Llama-3.1-8B-Instruct"
+    name: "google/gemma-2-9b-it"
   doctor_d:
     provider: "huggingface"
     name: "Qwen/Qwen2.5-7B-Instruct"
@@ -57,5 +57,5 @@ pipeline:
   run_mediq: true
   score_coverage: true
   cross_finalize: true
-  skip_existing: true                # skip non-empty results/scored/cross files
+  skip_existing: true
   output_dir: "mediq_experiment/outputs"
