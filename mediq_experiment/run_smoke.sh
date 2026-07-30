@@ -13,7 +13,7 @@ if [[ -f .env ]]; then
   set +a
 fi
 
-export HF_HOME="${HF_HOME:-/project2/ruishanl_1185/proj-26su-agent-trial-design/Ray/Agent_Trial_Design/model}"
+export HF_HOME="${HF_HOME:-/project2/ruishanl_1185/proj-26su-agent-trial-design/Ray/Agent_Trial_Design/hf_cache}"
 mkdir -p "$HF_HOME"
 echo "SMOKE | HF_HOME=$HF_HOME"
 

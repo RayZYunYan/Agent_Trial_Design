@@ -37,7 +37,7 @@ pip install -U "huggingface_hub" torch transformers accelerate vllm pyyaml pytho
 ```
 
 ```bash
-export HF_HOME=/project2/ruishanl_1185/proj-26su-agent-trial-design/Ray/Agent_Trial_Design/model
+export HF_HOME=/project2/ruishanl_1185/proj-26su-agent-trial-design/Ray/Agent_Trial_Design/hf_cache
 mkdir -p "$HF_HOME"
 hf auth login
 
@@ -56,7 +56,7 @@ cd /path/to/repo/root   # directory that contains mediq_experiment/
 pytest mediq_experiment/tests/test_pipeline_config.py -q
 
 # 1) Preflight
-export HF_HOME=/project2/ruishanl_1185/proj-26su-agent-trial-design/Ray/Agent_Trial_Design/model
+export HF_HOME=/project2/ruishanl_1185/proj-26su-agent-trial-design/Ray/Agent_Trial_Design/hf_cache
 python -m mediq_experiment.check_setup --config mediq_experiment/config_smoke.yaml --require-models
 
 # 2) Smoke (1 case → outputs_smoke/)

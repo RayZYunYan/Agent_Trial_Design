@@ -8,7 +8,7 @@
 #            sbatch mediq_experiment/slurm_mediq_ae.sh
 #
 # HF_HOME (CARC model cache):
-#   /project2/ruishanl_1185/proj-26su-agent-trial-design/Ray/Agent_Trial_Design/model
+#   /project2/ruishanl_1185/proj-26su-agent-trial-design/Ray/Agent_Trial_Design/hf_cache
 
 data:
   source_path: "data/all_dev_good.jsonl"

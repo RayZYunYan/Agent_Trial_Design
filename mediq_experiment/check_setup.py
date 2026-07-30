@@ -26,7 +26,7 @@ from mediq_experiment.model_chat import is_local_provider, resolve_provider
 from mediq_experiment.run_pipeline import _list_doctors
 
 DEFAULT_HF_HOME = (
-    "/project2/ruishanl_1185/proj-26su-agent-trial-design/Ray/Agent_Trial_Design/model"
+    "/project2/ruishanl_1185/proj-26su-agent-trial-design/Ray/Agent_Trial_Design/hf_cache"
 )
 
 
