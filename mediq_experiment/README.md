@@ -47,27 +47,32 @@ hf download Qwen/Qwen2.5-7B-Instruct
 hf download aaditya/Llama3-OpenBioLLM-8B
 ```
 
-## Recommended order on CARC
+## Recommended order on CARC (Discovery)
+
+Use **Discovery** (not Endeavour). Submit from the login node (`discovery2`); jobs run on the **gpu** partition.
 
 ```bash
-cd /path/to/repo/root   # directory that contains mediq_experiment/
+cd /path/to/repo/root
 
-# 0) Offline unit tests (no GPU)
-pytest mediq_experiment/tests/test_pipeline_config.py -q
+# 0) Offline unit tests (optional; needs pytest)
+python -m pytest mediq_experiment/tests/test_pipeline_config.py -q
 
-# 1) Preflight
+# 1) Preflight on login node
 export HF_HOME=/project2/ruishanl_1185/proj-26su-agent-trial-design/Ray/Agent_Trial_Design/hf_cache
 python -m mediq_experiment.check_setup --config mediq_experiment/config_smoke.yaml --require-models
 
-# 2) Smoke (1 case → outputs_smoke/)
+# 2) Smoke (gpu partition, 1× A40)
 sbatch mediq_experiment/slurm_mediq_smoke.sh
-# or: bash mediq_experiment/run_smoke.sh
+squeue -u $USER
+# logs: mediq_experiment/outputs_smoke/logs/
 
-# 3) After smoke looks good → full 100 cases (skips existing A/B)
+# 3) Full run after smoke OK
 sbatch mediq_experiment/slurm_mediq_ae.sh
-# or: bash mediq_experiment/run.sh
 ```
 
+SLURM headers use `#SBATCH --partition=gpu` and `#SBATCH --gres=gpu:a40:1`.
+If submit fails, edit the script to `gpu:v100:1` or `gpu:a100:1`.
+Do **not** use `--partition=main` with a GPU request.
 ## Outputs
 
 | Path | Content |
