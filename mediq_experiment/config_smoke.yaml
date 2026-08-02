@@ -1,26 +1,24 @@
-# Smoke / dry-run config: 1 case, shorter dialogue, separate output dir.
-# Does NOT touch mediq_experiment/outputs (keeps full A–E results safe).
+# Smoke — Mac mini + MLX (1 case → outputs_smoke/)
 #
-#   bash mediq_experiment/run_smoke.sh
-#   sbatch mediq_experiment/slurm_mediq_smoke.sh
-#   python -m mediq_experiment.run_pipeline --config mediq_experiment/config_smoke.yaml
+#   bash mediq_experiment/run_mac_smoke.sh
 
 data:
   source_path: "data/all_dev_good.jsonl"
   id_min: 100
   id_max: 199
-  max_cases: 1                       # single case smoke
+  max_cases: 1
 
 mediq:
   expert_class: "ScaleExpert"
   patient_class: "FactSelectPatient"
-  max_questions: 8                   # shorter than full 30
+  max_questions: 8
   abstain_threshold: 4.0
   use_api: null
-  use_vllm: true
+  use_vllm: false
+  use_mlx: true
   load_in_4bit: false
   rationale_generation: true
-  self_consistency: 1                # faster smoke (full uses 3)
+  self_consistency: 1
   temperature: 0.6
   max_tokens: 512
 
@@ -32,14 +30,16 @@ models:
     provider: "anthropic"
     name: "claude-sonnet-4-6"
   doctor_c:
-    provider: "huggingface"
-    name: "google/gemma-2-9b-it"
+    provider: "openai"
+    name: "gpt-5.6-luna"
   doctor_d:
     provider: "huggingface"
-    name: "Qwen/Qwen2.5-7B-Instruct"
+    name: "Qwen/Qwen3.5-4B"
+    mlx_name: "mlx-community/Qwen3.5-4B-OptiQ-4bit"
   doctor_e:
     provider: "huggingface"
-    name: "aaditya/Llama3-OpenBioLLM-8B"
+    name: "meta-llama/Llama-3.1-8B-Instruct"
+    mlx_name: "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit"
   patient:
     provider: "anthropic"
     name: "claude-haiku-4-5"

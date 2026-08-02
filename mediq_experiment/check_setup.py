@@ -25,8 +25,8 @@ from mediq_experiment.io_utils import ROOT, load_yaml
 from mediq_experiment.model_chat import is_local_provider, resolve_provider
 from mediq_experiment.run_pipeline import _list_doctors
 
-DEFAULT_HF_HOME = (
-    "/project2/ruishanl_1185/proj-26su-agent-trial-design/Ray/Agent_Trial_Design/hf_cache"
+DEFAULT_HF_HOME = os.path.expanduser(
+    os.environ.get("HF_HOME_DEFAULT", "~/hf_cache")
 )
 
 
@@ -100,9 +100,28 @@ def check_setup(
     if not home.exists():
         warnings.append(f"HF_HOME does not exist yet: {home}")
 
+    use_mlx = bool((cfg.get("mediq") or {}).get("use_mlx", False))
+    if use_mlx:
+        print("Accelerator: mlx (mlx-lm)")
+        try:
+            import mlx_lm  # noqa: F401
+
+            print("  mlx_lm: import OK")
+        except ImportError:
+            msg = "mlx-lm not installed (pip install mlx-lm) — required when mediq.use_mlx=true"
+            if require_models:
+                errors.append(msg)
+            else:
+                warnings.append(msg)
+
     local_ids = []
     for key, block in doctors:
-        if is_local_provider(resolve_provider(block)):
+        if not is_local_provider(resolve_provider(block)):
+            continue
+        # Prefer mlx_name when Apple MLX path is enabled
+        if use_mlx and block.get("mlx_name"):
+            local_ids.append(str(block["mlx_name"]))
+        else:
             local_ids.append(str(block["name"]))
 
     if home.exists():

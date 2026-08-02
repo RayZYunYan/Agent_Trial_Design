@@ -53,7 +53,9 @@ def chat(
     temperature: float = 0.0,
     max_tokens: int = 256,
     use_vllm: bool = False,
+    use_mlx: bool = False,
     load_in_4bit: bool = False,
+    hf_fallback_name: Optional[str] = None,
     system_prompt: Optional[str] = None,
 ) -> str:
     """Single-turn chat; local path uses MediQ helper.get_response."""
@@ -76,9 +78,11 @@ def chat(
         full,
         model_name=model_name,
         use_vllm=use_vllm,
+        use_mlx=use_mlx,
         use_api=None,
         temperature=temperature,
         max_tokens=max_tokens,
         load_in_4bit=load_in_4bit,
+        hf_fallback_name=hf_fallback_name,
     )
     return text or ""

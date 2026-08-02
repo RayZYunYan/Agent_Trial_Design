@@ -38,39 +38,43 @@ def test_full_config_has_five_doctors(full_cfg):
     ]
 
 
-def test_doctor_c_is_gemma(full_cfg):
+def test_doctor_c_is_luna_api(full_cfg):
     block = full_cfg["models"]["doctor_c"]
-    assert "gemma" in block["name"].lower()
-    assert resolve_provider(block) == "huggingface"
-    assert is_local_provider("huggingface")
-    assert api_use_flag("huggingface") is None
+    assert "luna" in block["name"].lower()
+    assert resolve_provider(block) == "openai"
+    assert api_use_flag("openai") == "openai"
+    assert not is_local_provider("openai")
 
 
-def test_local_doctors_cde(full_cfg):
-    for key in ("doctor_c", "doctor_d", "doctor_e"):
+def test_local_doctors_de(full_cfg):
+    for key in ("doctor_d", "doctor_e"):
         p = resolve_provider(full_cfg["models"][key])
         assert is_local_provider(p)
         assert api_use_flag(p) is None
+    assert "Qwen3.5-4B" in full_cfg["models"]["doctor_d"]["name"]
+    assert "Llama-3.1-8B" in full_cfg["models"]["doctor_e"]["name"]
+    assert "mlx-community" in full_cfg["models"]["doctor_d"]["mlx_name"]
+    assert "mlx-community" in full_cfg["models"]["doctor_e"]["mlx_name"]
+    assert full_cfg["mediq"].get("use_mlx") is True
 
 
-def test_api_doctors_ab(full_cfg):
+def test_api_doctors_abc(full_cfg):
     assert resolve_provider(full_cfg["models"]["doctor_a"]) == "openai"
     assert resolve_provider(full_cfg["models"]["doctor_b"]) == "anthropic"
-    assert api_use_flag("openai") == "openai"
-    assert api_use_flag("anthropic") == "anthropic"
+    assert resolve_provider(full_cfg["models"]["doctor_c"]) == "openai"
 
 
 def test_smoke_isolated_output_and_one_case(smoke_cfg, full_cfg):
     assert smoke_cfg["data"]["max_cases"] == 1
     assert smoke_cfg["pipeline"]["output_dir"] == "mediq_experiment/outputs_smoke"
     assert smoke_cfg["models"]["doctor_c"]["name"] == full_cfg["models"]["doctor_c"]["name"]
-    assert "gemma" in smoke_cfg["models"]["doctor_c"]["name"].lower()
+    assert smoke_cfg["mediq"].get("use_vllm") is False
 
 
 def test_build_cmd_api_vs_local(full_cfg):
     mediq = full_cfg["mediq"]
     api_cmd = build_mediq_cmd(
-        expert_model="gpt-5.4",
+        expert_model="gpt-5.6-luna",
         patient_model="claude-haiku-4-5",
         data_dir=Path("."),
         dev_filename="x.jsonl",
@@ -83,7 +87,7 @@ def test_build_cmd_api_vs_local(full_cfg):
     assert "--use_vllm" not in api_cmd
 
     local_cmd = build_mediq_cmd(
-        expert_model="google/gemma-2-9b-it",
+        expert_model="Qwen/Qwen3.5-4B",
         patient_model="claude-haiku-4-5",
         data_dir=Path("."),
         dev_filename="x.jsonl",
@@ -93,7 +97,8 @@ def test_build_cmd_api_vs_local(full_cfg):
         expert_provider="huggingface",
     )
     assert "--use_api" not in local_cmd
-    assert "--use_vllm" in local_cmd
+    assert "--use_vllm" not in local_cmd
+    assert "--use_mlx" in local_cmd
 
 
 def test_doctor_letter():
@@ -101,7 +106,6 @@ def test_doctor_letter():
     assert _doctor_letter("doctor_e") == "e"
 
 
-def test_hf_home_documented(full_cfg):
-    # Path is documented in comments / scripts; models list must stay HF ids.
-    for key in ("doctor_c", "doctor_d", "doctor_e"):
+def test_local_hf_ids(full_cfg):
+    for key in ("doctor_d", "doctor_e"):
         assert "/" in full_cfg["models"][key]["name"]

@@ -37,9 +37,10 @@ def infer_use_api(model_name, use_api=None):
 
 
 class ModelCache:
-    def __init__(self, model_name, use_vllm=False, use_api=None, **kwargs):
+    def __init__(self, model_name, use_vllm=False, use_api=None, use_mlx=False, **kwargs):
         self.model_name = model_name
         self.use_vllm = use_vllm
+        self.use_mlx = bool(use_mlx) and use_api not in _API_BACKENDS
         self.use_api = use_api
         self.model = None
         self.tokenizer = None
@@ -68,7 +69,33 @@ class ModelCache:
             if not key:
                 raise ValueError("ANTHROPIC_API_KEY missing in .env (needed for Claude models)")
             self.client = anthropic.Anthropic(api_key=key)
-        elif self.use_vllm:
+        elif self.use_mlx:
+            try:
+                from mlx_lm import load as mlx_load
+
+                log_info(f"[{self.model_name}]: loading with mlx-lm (Apple Silicon)", print_to_std=True)
+                self.model, self.tokenizer = mlx_load(self.model_name)
+                self.use_vllm = False
+            except Exception as e:
+                log_info(
+                    f"[ERROR] [{self.model_name}]: mlx-lm load failed ({e}); falling back to transformers/MPS.",
+                    mode="error",
+                    print_to_std=True,
+                )
+                self.use_mlx = False
+                # MLX community ids are not always loadable via transformers; prefer HF original id.
+                fallback = self.args.get("hf_fallback_name") or self.args.get("fallback_model_name")
+                if fallback and fallback != self.model_name:
+                    log_info(
+                        f"[{self.model_name}]: switching load id to HF fallback {fallback}",
+                        print_to_std=True,
+                    )
+                    self.model_name = fallback
+        if self.use_api in _API_BACKENDS:
+            return
+        if self.use_mlx:
+            return
+        if self.use_vllm:
             try:
                 from vllm import LLM
                 enable_prefix_caching = self.args.get("enable_prefix_caching", False)
@@ -90,12 +117,14 @@ class ModelCache:
                 log_info(f"[ERROR] [{self.model_name}]: If using a custom local model, it is not compatible with VLLM, will load using Huggingfcae and you can ignore this error: {str(e)}", mode="error")
                 self.use_vllm = False
         if not self.use_vllm and self.use_api not in _API_BACKENDS:
+            import torch
             from transformers import AutoModelForCausalLM, AutoTokenizer
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-            load_kwargs = {
-                "device_map": self.args.get("device_map", "auto"),
-                "torch_dtype": "auto",
-            }
+
+            trust_remote = bool(self.args.get("trust_remote_code", True))
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self.model_name, trust_remote_code=trust_remote
+            )
+            load_kwargs = {"trust_remote_code": trust_remote}
             load_in_4bit = self.args.get("load_in_4bit", False)
             if isinstance(load_in_4bit, str):
                 load_in_4bit = load_in_4bit.strip().lower() in ("1", "true", "yes")
@@ -105,22 +134,40 @@ class ModelCache:
                     "true",
                     "yes",
                 )
-            if load_in_4bit:
-                try:
-                    from transformers import BitsAndBytesConfig
-                    load_kwargs["quantization_config"] = BitsAndBytesConfig(load_in_4bit=True)
-                except Exception as e:
-                    log_info(
-                        f"[{self.model_name}]: 4-bit load requested but bitsandbytes unavailable ({e}); loading full precision.",
-                        mode="warning",
-                    )
-            self.model = AutoModelForCausalLM.from_pretrained(self.model_name, **load_kwargs)
+
+            use_mps = torch.backends.mps.is_available()
+            # Mac / Apple Silicon: avoid bitsandbytes + device_map quirks; use MPS fp16.
+            if use_mps and not load_in_4bit:
+                load_kwargs["torch_dtype"] = torch.float16
+                self.model = AutoModelForCausalLM.from_pretrained(
+                    self.model_name, **load_kwargs
+                )
+                self.model.to("mps")
+            else:
+                load_kwargs["device_map"] = self.args.get("device_map", "auto")
+                load_kwargs["torch_dtype"] = "auto"
+                if load_in_4bit:
+                    try:
+                        from transformers import BitsAndBytesConfig
+
+                        load_kwargs["quantization_config"] = BitsAndBytesConfig(
+                            load_in_4bit=True
+                        )
+                    except Exception as e:
+                        log_info(
+                            f"[{self.model_name}]: 4-bit load requested but bitsandbytes unavailable ({e}); loading full precision.",
+                            mode="warning",
+                        )
+                self.model = AutoModelForCausalLM.from_pretrained(
+                    self.model_name, **load_kwargs
+                )
             self.model.eval()
-            self.tokenizer.pad_token = self.tokenizer.eos_token
+            if self.tokenizer.pad_token is None:
+                self.tokenizer.pad_token = self.tokenizer.eos_token
             self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
             eot = self.tokenizer.convert_tokens_to_ids("<|eot_id|>")
             self.terminators = [self.tokenizer.eos_token_id]
-            if eot is not None and eot != self.tokenizer.unk_token_id:
+            if eot is not None and eot != getattr(self.tokenizer, "unk_token_id", None):
                 self.terminators.append(eot)
     
     def generate(self, messages):
@@ -135,9 +182,52 @@ class ModelCache:
             return self.openai_generate(messages)
         if self.use_api == "anthropic":
             return self.anthropic_generate(messages)
+        if self.use_mlx:
+            return self.mlx_generate(messages)
         if self.use_vllm:
             return self.vllm_generate(messages)
         return self.huggingface_generate(messages)
+
+    def mlx_generate(self, messages):
+        from mlx_lm import generate as mlx_generate
+
+        try:
+            prompt = self._apply_chat_template(messages, tokenize=False)
+        except Exception:
+            log_info(f"[{self.model_name}]: Could not apply chat template to messages.", mode="warning")
+            prompt = "\n\n".join([m["content"] for m in messages])
+        if not isinstance(prompt, str):
+            prompt = self.tokenizer.decode(prompt) if hasattr(self.tokenizer, "decode") else str(prompt)
+
+        temp = float(self.temperature) if self.temperature is not None else 0.6
+        gen_kwargs = {
+            "model": self.model,
+            "tokenizer": self.tokenizer,
+            "prompt": prompt,
+            "max_tokens": int(self.max_tokens),
+            "verbose": False,
+        }
+        # Newer mlx-lm: make_sampler(...); older: temp=/top_p= kwargs.
+        try:
+            from mlx_lm.sample_utils import make_sampler
+
+            sampler = make_sampler(temp=max(temp, 0.0), top_p=float(self.top_p))
+            response_text = mlx_generate(**gen_kwargs, sampler=sampler)
+        except Exception:
+            try:
+                if temp <= 0:
+                    response_text = mlx_generate(**gen_kwargs, temp=0.0)
+                else:
+                    response_text = mlx_generate(**gen_kwargs, temp=temp, top_p=float(self.top_p))
+            except TypeError:
+                response_text = mlx_generate(
+                    self.model, self.tokenizer, prompt=prompt, max_tokens=int(self.max_tokens), verbose=False
+                )
+
+        response_text = self._strip_thinking(response_text or "")
+        usage = {"input_tokens": None, "output_tokens": None}
+        log_info(f"[{self.model_name}][OUTPUT]: {response_text}")
+        return response_text, None, usage
 
     def _input_device(self):
         try:
@@ -145,12 +235,54 @@ class ModelCache:
         except Exception:
             return getattr(self.model, "device", "cpu")
     
+    def _apply_chat_template(self, messages, *, tokenize):
+        """Apply chat template; disable Qwen3.5 default thinking when supported."""
+        kwargs = {
+            "add_generation_prompt": True,
+            "tokenize": tokenize,
+        }
+        if tokenize:
+            kwargs["return_tensors"] = "pt"
+        # Qwen3.5 thinks by default; MediQ needs direct answers.
+        name = (self.model_name or "").lower()
+        if "qwen3.5" in name or "qwen3_5" in name:
+            kwargs["enable_thinking"] = False
+            kwargs["chat_template_kwargs"] = {"enable_thinking": False}
+        try:
+            return self.tokenizer.apply_chat_template(messages, **kwargs)
+        except TypeError:
+            kwargs.pop("enable_thinking", None)
+            kwargs.pop("chat_template_kwargs", None)
+            try:
+                return self.tokenizer.apply_chat_template(messages, **kwargs)
+            except Exception:
+                raise
+
+    @staticmethod
+    def _strip_thinking(text: str) -> str:
+        import re
+
+        if not text:
+            return text
+        # Drop Qwen / similar chain-of-thought blocks if still present.
+        cleaned = re.sub(
+            r"<think>.*?</think>\s*",
+            "",
+            text,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        cleaned = re.sub(
+            r"<thinking>.*?</thinking>\s*",
+            "",
+            cleaned,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        return cleaned.strip() or text.strip()
+
     def huggingface_generate(self, messages):
         device = self._input_device()
         try:
-            inputs = self.tokenizer.apply_chat_template(
-                messages, add_generation_prompt=True, return_tensors="pt"
-            ).to(device)
+            inputs = self._apply_chat_template(messages, tokenize=True).to(device)
         except Exception:
             # Join messages into a single prompt for general language models
             log_info(f"[{self.model_name}]: Could not apply chat template to messages.", mode="warning")
@@ -172,7 +304,10 @@ class ModelCache:
 
         outputs = self.model.generate(inputs, **gen_kwargs)
         # TODO: If top_logprobs > 0, return logprobs of generation
-        response_text = self.tokenizer.decode(outputs[0][inputs.shape[-1]:], skip_special_tokens=True)
+        response_text = self.tokenizer.decode(
+            outputs[0][inputs.shape[-1] :], skip_special_tokens=True
+        )
+        response_text = self._strip_thinking(response_text)
         usage = {"input_tokens": inputs.shape[-1], "output_tokens": outputs.shape[-1]-inputs.shape[-1]}
         output_dict = {'response_text': response_text, 'usage': usage}
 
@@ -181,7 +316,7 @@ class ModelCache:
         
     def vllm_generate(self, messages):
         try:
-            inputs = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+            inputs = self._apply_chat_template(messages, tokenize=False)
         except Exception:
             # Join messages into a single prompt for general language models
             log_info(f"[{self.model_name}]: Could not apply chat template to messages.", mode="warning")
@@ -211,7 +346,7 @@ class ModelCache:
             )
         
         outputs = self.model.generate(inputs, sampling_params)
-        response_text = outputs[0].outputs[0].text
+        response_text = self._strip_thinking(outputs[0].outputs[0].text)
         logprobs = outputs[0].outputs[0].cumulative_logprob
         # TODO: If top_logprobs > 0, return logprobs of generation
         # if self.top_logprobs > 0: logprobs = outputs[0].outputs[0].logprobs
@@ -300,15 +435,22 @@ class ModelCache:
         return response_text, None, usage
 
 
-def get_response(messages, model_name, use_vllm=False, use_api=None, **kwargs):
+def get_response(messages, model_name, use_vllm=False, use_api=None, use_mlx=False, **kwargs):
     use_api = infer_use_api(model_name, use_api)
-    # API backends ignore vLLM; keep cache key stable across mixed expert/patient runs.
+    # API backends ignore local accelerators.
     effective_vllm = bool(use_vllm) and use_api not in _API_BACKENDS
-    cache_key = f"{use_api}:vllm={effective_vllm}:{model_name}"
+    effective_mlx = bool(use_mlx) and use_api not in _API_BACKENDS and not effective_vllm
+    cache_key = f"{use_api}:vllm={effective_vllm}:mlx={effective_mlx}:{model_name}"
 
     model_cache = models.get(cache_key, None)
     if model_cache is None:
-        model_cache = ModelCache(model_name, use_vllm=effective_vllm, use_api=use_api, **kwargs)
+        model_cache = ModelCache(
+            model_name,
+            use_vllm=effective_vllm,
+            use_api=use_api,
+            use_mlx=effective_mlx,
+            **kwargs,
+        )
         models[cache_key] = model_cache
     
     return model_cache.generate(messages)

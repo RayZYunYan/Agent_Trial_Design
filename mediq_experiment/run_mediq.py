@@ -72,6 +72,8 @@ def build_mediq_cmd(
     use_api = api_use_flag(expert_provider) or api_use_flag(mediq_cfg.get("use_api"))
     if use_api:
         cmd.extend(["--use_api", str(use_api)])
+    elif mediq_cfg.get("use_mlx", False):
+        cmd.append("--use_mlx")
     elif mediq_cfg.get("use_vllm", False):
         cmd.append("--use_vllm")
     if mediq_cfg.get("load_in_4bit", False):

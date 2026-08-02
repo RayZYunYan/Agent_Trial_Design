@@ -55,7 +55,10 @@ def _list_doctors(cfg: Dict[str, Any]) -> List[Tuple[str, Dict[str, Any]]]:
     return doctors
 
 
-def _model_name(block: Dict[str, Any], key: str) -> str:
+def _model_name(block: Dict[str, Any], key: str, *, use_mlx: bool = False) -> str:
+    """Prefer mlx_name for Apple Silicon when configured."""
+    if use_mlx and block.get("mlx_name"):
+        return str(block["mlx_name"])
     name = block.get("name")
     if not name:
         raise ValueError(f"config.models.{key}.name is required")
@@ -85,17 +88,23 @@ def run_pipeline(config_path: Path, *, skip_mediq: bool = False) -> Dict[str, An
         id_max = int(id_max)
     output_dir = ensure_dir(ROOT / str(pipe_cfg.get("output_dir", "mediq_experiment/outputs")))
 
+    use_vllm = bool(mediq_cfg.get("use_vllm", False))
+    use_mlx = bool(mediq_cfg.get("use_mlx", False))
+    load_in_4bit = bool(mediq_cfg.get("load_in_4bit", False))
+
     doctors = _list_doctors(cfg)
     mediq_use_api = mediq_cfg.get("use_api")
     doctor_meta: Dict[str, Dict[str, Any]] = {}
     for key, block in doctors:
         provider = resolve_provider(block, mediq_use_api=mediq_use_api)
+        local = is_local_provider(provider)
         doctor_meta[key] = {
             "key": key,
             "letter": _doctor_letter(key),
-            "name": _model_name(block, key),
+            "name": _model_name(block, key, use_mlx=use_mlx and local),
+            "hf_name": _model_name(block, key, use_mlx=False),
             "provider": provider,
-            "local": is_local_provider(provider),
+            "local": local,
         }
 
     patient_block = models.get("patient") or {}
@@ -107,15 +116,13 @@ def run_pipeline(config_path: Path, *, skip_mediq: bool = False) -> Dict[str, An
     judge_model = str(judge.get("name", "claude-haiku-4-5"))
     judge_temp = float(judge.get("temperature", 0.1))
 
-    use_vllm = bool(mediq_cfg.get("use_vllm", False))
-    load_in_4bit = bool(mediq_cfg.get("load_in_4bit", False))
-
     report: Dict[str, Any] = {
         "config": str(config_path),
         "data": str(source),
         "max_cases": max_cases,
         "id_min": id_min,
         "id_max": id_max,
+        "accelerator": ("mlx" if use_mlx else ("vllm" if use_vllm else "transformers")),
         "models": {
             **{k: f"{m['provider']}/{m['name']}" for k, m in doctor_meta.items()},
             "patient": f"{patient_provider}/{patient}",
@@ -222,7 +229,9 @@ def run_pipeline(config_path: Path, *, skip_mediq: bool = False) -> Dict[str, An
                     responder_provider=dst["provider"],
                     responder_model=dst["name"],
                     use_vllm=use_vllm and dst["local"],
+                    use_mlx=use_mlx and dst["local"],
                     load_in_4bit=load_in_4bit and dst["local"],
+                    hf_fallback_name=dst["hf_name"] if dst["local"] else None,
                 )
 
     summary_path = output_dir / "summary.json"

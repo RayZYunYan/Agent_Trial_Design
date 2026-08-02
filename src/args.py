@@ -31,9 +31,14 @@ def get_args():
 
     parser.add_argument('--use_vllm', action='store_true', help='Use the VLLM model for generating responses.')
     parser.add_argument(
+        '--use_mlx',
+        action='store_true',
+        help='Use Apple MLX (mlx-lm) for local models on Apple Silicon.',
+    )
+    parser.add_argument(
         '--load_in_4bit',
         action='store_true',
-        help='Load local HF weights in 4-bit (transformers fallback only; ignored by vLLM).',
+        help='Load local HF weights in 4-bit (transformers fallback only; ignored by vLLM/MLX).',
     )
     parser.add_argument('--use_api', type=str, default=None, help='Use an API for generating responses.', choices=['openai', 'groq', 'anthropic'])
     parser.add_argument('--temperature', type=float, default=0.6, help='Temperature for sampling from the model.')

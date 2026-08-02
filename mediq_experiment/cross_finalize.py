@@ -77,7 +77,9 @@ def run_cross(
     responder_provider: str,
     responder_model: str,
     use_vllm: bool = False,
+    use_mlx: bool = False,
     load_in_4bit: bool = False,
+    hf_fallback_name: Optional[str] = None,
     max_tokens: int = 64,
 ) -> Dict[str, Any]:
     load_dotenv(ROOT / ".env")
@@ -90,7 +92,9 @@ def run_cross(
             temperature=0.0,
             max_tokens=max_tokens,
             use_vllm=use_vllm,
+            use_mlx=use_mlx,
             load_in_4bit=load_in_4bit,
+            hf_fallback_name=hf_fallback_name,
         )
 
     rows = read_jsonl(source_jsonl)

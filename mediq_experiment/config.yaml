@@ -1,28 +1,26 @@
-# MediQ Interactive Best: ScaleExpert + RG + SC=3, max_questions=30
-# Doctors A/B: API (GPT / Claude) | C/D/E: local HF (vLLM on CARC)
-#   C = Gemma 2 9B (replaces Llama pending access)
-#   D = Qwen2.5-7B | E = OpenBioLLM-8B
-# Patient + Judge: Claude Haiku 4.5
-# Full run:  python -m mediq_experiment.run_pipeline
-#            bash mediq_experiment/run.sh
-#            sbatch mediq_experiment/slurm_mediq_ae.sh
+# MediQ Interactive Best — Mac mini (M4 Pro / 48GB) defaults to Apple MLX
+# Doctors:
+#   A = gpt-5.4 | B = claude-sonnet-4-6 | C = gpt-5.6-luna (APIs)
+#   D/E = local via mlx-lm 4-bit (fast on Apple Silicon)
 #
-# HF_HOME (CARC model cache):
-#   /project2/ruishanl_1185/proj-26su-agent-trial-design/Ray/Agent_Trial_Design/hf_cache
+#   bash mediq_experiment/download_local_models.sh
+#   bash mediq_experiment/run_mac_smoke.sh
+#   bash mediq_experiment/run_mac.sh
 
 data:
   source_path: "data/all_dev_good.jsonl"
-  id_min: 100                        # inclusive
-  id_max: 199                        # inclusive → 100 cases
-  max_cases: null                    # null = all ids in [id_min, id_max]
+  id_min: 100
+  id_max: 199
+  max_cases: null
 
 mediq:
-  expert_class: "ScaleExpert"        # Interactive Best (not BasicExpert)
+  expert_class: "ScaleExpert"
   patient_class: "FactSelectPatient"
-  max_questions: 30                  # MediQ default hard cap
-  abstain_threshold: 4.0             # Scale Likert: answer only if conf >= 4
+  max_questions: 30
+  abstain_threshold: 4.0
   use_api: null
-  use_vllm: true
+  use_vllm: false
+  use_mlx: true                 # Apple Silicon accelerator (mlx-lm)
   load_in_4bit: false
   rationale_generation: true
   self_consistency: 3
@@ -37,14 +35,17 @@ models:
     provider: "anthropic"
     name: "claude-sonnet-4-6"
   doctor_c:
-    provider: "huggingface"
-    name: "google/gemma-2-9b-it"
+    provider: "openai"
+    name: "gpt-5.6-luna"
   doctor_d:
     provider: "huggingface"
-    name: "Qwen/Qwen2.5-7B-Instruct"
+    name: "Qwen/Qwen3.5-4B"
+    # mlx-lm 4-bit (text); official *-MLX-4bit builds need mlx-vlm
+    mlx_name: "mlx-community/Qwen3.5-4B-OptiQ-4bit"
   doctor_e:
     provider: "huggingface"
-    name: "aaditya/Llama3-OpenBioLLM-8B"
+    name: "meta-llama/Llama-3.1-8B-Instruct"
+    mlx_name: "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit"
   patient:
     provider: "anthropic"
     name: "claude-haiku-4-5"

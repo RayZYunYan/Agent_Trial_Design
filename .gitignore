@@ -33,20 +33,54 @@ conda-env/
 *.pth
 *.ckpt
 *.safetensors
+*.gguf
+*.ggml
+*.onnx
 *.h5
 *.npy
+*.npz
+*.npz.index
+*.npz.index.json
+*.msgpack
+*.ot
+*.arrow
+
+# Hugging Face / local model caches (never commit; too large)
+hf_cache/
+**/hf_cache/
+.hf_cache/
+**/.cache/huggingface/
+.cache/huggingface/
+.cache/torch/
+.cache/mlx/
+# HF hub layout (models--org--name / blobs / snapshots)
+**/models--*/
+**/datasets--*/
+**/spaces--*/
+# Common local download dirs inside this repo
+huggingface_cache/
+hf-models/
+local_models/
+weights/
+checkpoints/
+
+# MLX / Apple Silicon local caches
+.mlx/
+**/mlx_models/
+mlx_cache/
 
 # Data cache
 *.cache
 *.pkl
 *.pickle
-# data/red_flag_cache.json
+# data/red_flag_cache.json  (tracked intentionally when small JSON)
 
 # Outputs / logs
 smart_trial/outputs/*
 !smart_trial/outputs/encounters.jsonl
 smart_trial/q_learning/outputs/
 mediq_experiment/outputs/
+mediq_experiment/outputs_smoke/
 *.log
 *.log.*
 logs/
