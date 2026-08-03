@@ -236,11 +236,21 @@ class ModelClient:
             if system_prompt:
                 full_messages.append({"role": "system", "content": system_prompt})
             full_messages.extend(messages)
-            response = self._client.chat.completions.create(
-                model=self.model_name,
-                messages=full_messages,
-                temperature=temp,
-            )
+            kwargs = {
+                "model": self.model_name,
+                "messages": full_messages,
+                "temperature": temp,
+            }
+            try:
+                response = self._client.chat.completions.create(**kwargs)
+            except Exception as e:
+                # Reasoning models (gpt-5*, o-series) only accept the default temperature.
+                err = str(e).lower()
+                if "temperature" in err and "unsupported" in err:
+                    kwargs.pop("temperature", None)
+                    response = self._client.chat.completions.create(**kwargs)
+                else:
+                    raise
             return response.choices[0].message.content
 
         if self.provider == "anthropic":
