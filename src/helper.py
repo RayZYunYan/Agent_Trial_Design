@@ -243,9 +243,18 @@ class ModelCache:
         }
         if tokenize:
             kwargs["return_tensors"] = "pt"
-        # Qwen3.5 thinks by default; MediQ needs direct answers.
+        # Qwen3.5 / DeepSeek-R1 (Qwen3) often think by default; MediQ needs direct answers.
         name = (self.model_name or "").lower()
-        if "qwen3.5" in name or "qwen3_5" in name:
+        if any(
+            key in name
+            for key in (
+                "qwen3.5",
+                "qwen3_5",
+                "deepseek-r1",
+                "r1-0528",
+                "qwen3-8b",
+            )
+        ):
             kwargs["enable_thinking"] = False
             kwargs["chat_template_kwargs"] = {"enable_thinking": False}
         try:
@@ -264,7 +273,7 @@ class ModelCache:
 
         if not text:
             return text
-        # Drop Qwen / similar chain-of-thought blocks if still present.
+        # Drop Qwen / DeepSeek-R1 chain-of-thought blocks if still present.
         cleaned = re.sub(
             r"<think>.*?</think>\s*",
             "",
@@ -273,6 +282,13 @@ class ModelCache:
         )
         cleaned = re.sub(
             r"<thinking>.*?</thinking>\s*",
+            "",
+            cleaned,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        # Truncated R1 outputs often leave an unclosed <think> ...
+        cleaned = re.sub(
+            r"<think>.*\Z",
             "",
             cleaned,
             flags=re.DOTALL | re.IGNORECASE,

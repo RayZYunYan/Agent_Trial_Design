@@ -1,10 +1,11 @@
-# MediQ experiment (API path) — install in a fresh venv on CARC / cloud:
-#   python -m venv .venv && source .venv/bin/activate   # Linux/CARC
+# MediQ experiment — install in a fresh venv:
+#   python -m venv .venv && source .venv/bin/activate
 #   pip install -r requirements.txt
+# On Apple Silicon also:  pip install mlx-lm
 #
-# Covers: mediq_experiment pipeline + upstream src/mediQ_benchmark.py (API only)
+# Covers: mediq_experiment pipeline + upstream src/mediQ_benchmark.py
 #          + smart_trial StageJudge / ModelClient for coverage & cross-finalize.
-# Does NOT include local HF/vLLM weights stack (torch/transformers) — not needed for Groq/OpenAI/Anthropic APIs.
+# mlx-lm is Apple-only and kept out of this file on purpose.
 
 pyyaml>=6.0
 python-dotenv>=1.0
@@ -12,3 +13,9 @@ groq>=0.11
 openai>=1.50
 anthropic>=0.36
 tqdm>=4.66
+
+# Local HF doctors (D/E) — transformers path + MLX fallback / downloads
+huggingface_hub>=0.24
+transformers>=4.40
+accelerate>=0.30
+torch>=2.0

@@ -8,7 +8,7 @@
 | B | Anthropic | `claude-sonnet-4-6` |
 | C | OpenAI | `gpt-5.6-luna` (API, no download) |
 | D | Local (MLX) | `mlx-community/Qwen3.5-4B-OptiQ-4bit` (from `Qwen/Qwen3.5-4B`) |
-| E | Local (MLX) | `mlx-community/Meta-Llama-3.1-8B-Instruct-4bit` |
+| E | Local (MLX) | `mlx-community/DeepSeek-R1-0528-Qwen3-8B-4bit` (from `deepseek-ai/DeepSeek-R1-0528-Qwen3-8B`) |
 | Patient / Judge | Anthropic | `claude-haiku-4-5` |
 
 **Accelerator on Apple Silicon:** `mediq.use_mlx: true` → [`mlx-lm`](https://github.com/ml-explore/mlx-lm) (Metal).  
@@ -24,8 +24,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -U pip
 pip install -r requirements.txt
-pip install mlx-lm                    # Apple Silicon accelerator
-pip install torch transformers accelerate huggingface_hub   # MLX fallback / other tools
+pip install mlx-lm                    # Apple Silicon only (not in requirements.txt)
 
 # 2) API keys in repo-root .env
 # OPENAI_API_KEY=...
@@ -74,7 +73,7 @@ python -m pytest mediq_experiment/tests/test_pipeline_config.py -q
 ## Notes
 
 - Doctor C is API-only; D/E need `HF_HOME` weights (`mlx_name` when `use_mlx: true`).
-- Qwen3.5 thinking mode is disabled in `src/helper.py` for MediQ.
-- Llama may require Meta license acceptance for the full HF id; the MLX 4-bit mirror is usually ungated.
+- Qwen3.5 / DeepSeek-R1 thinking blocks are disabled or stripped in `src/helper.py` for MediQ.
+- Doctor E is DeepSeek-R1 (no Meta Llama license). Prefer the MLX 4-bit mirror (~4.6GB).
 - `pipeline.skip_existing: true` skips non-empty results/scored/cross files.
 - To force transformers/MPS instead of MLX: set `mediq.use_mlx: false` and download full HF weights (`DOWNLOAD_HF_FULL=1`).
