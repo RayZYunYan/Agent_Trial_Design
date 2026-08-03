@@ -225,9 +225,21 @@ class ModelCache:
                 )
 
         response_text = self._strip_thinking(response_text or "")
-        usage = {"input_tokens": None, "output_tokens": None}
+        usage = {
+            "input_tokens": self._token_len(prompt),
+            "output_tokens": self._token_len(response_text),
+        }
         log_info(f"[{self.model_name}][OUTPUT]: {response_text}")
         return response_text, None, usage
+
+    def _token_len(self, text: str) -> int:
+        if not text:
+            return 0
+        try:
+            ids = self.tokenizer.encode(text)
+            return len(ids)
+        except Exception:
+            return 0
 
     def _input_device(self):
         try:
@@ -468,5 +480,14 @@ def get_response(messages, model_name, use_vllm=False, use_api=None, use_mlx=Fal
             **kwargs,
         )
         models[cache_key] = model_cache
-    
-    return model_cache.generate(messages)
+
+    response_text, log_probs, usage = model_cache.generate(messages)
+    # Callers accumulate usage with +=; never return None counts.
+    if not isinstance(usage, dict):
+        usage = {"input_tokens": 0, "output_tokens": 0}
+    else:
+        usage = {
+            "input_tokens": usage.get("input_tokens") or 0,
+            "output_tokens": usage.get("output_tokens") or 0,
+        }
+    return response_text, log_probs, usage
