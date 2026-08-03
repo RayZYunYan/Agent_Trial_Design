@@ -393,8 +393,13 @@ class ModelCache:
         }
         # GPT-5+ chat models reject max_tokens; use max_completion_tokens instead.
         name = (self.model_name or "").lower()
-        if name.startswith("gpt-5") or name.startswith("o1") or name.startswith("o3") or name.startswith("o4"):
-            kwargs["max_completion_tokens"] = self.max_tokens
+        is_reasoning = (
+            name.startswith("gpt-5") or name.startswith("o1") or name.startswith("o3") or name.startswith("o4")
+        )
+        if is_reasoning:
+            # Internal reasoning counts against the cap; a small cap can be
+            # exhausted before any visible output, causing a 400.
+            kwargs["max_completion_tokens"] = max(int(self.max_tokens), 4096)
         else:
             kwargs["max_tokens"] = self.max_tokens
         if self.top_logprobs > 0:
@@ -403,11 +408,15 @@ class ModelCache:
         try:
             response = self.client.chat.completions.create(**kwargs)
         except Exception as e:
-            # Fallback if temperature/top_p unsupported on reasoning models.
             err = str(e).lower()
+            # Fallback if temperature/top_p unsupported on reasoning models.
             if "temperature" in err or "top_p" in err or "unsupported" in err:
                 kwargs.pop("temperature", None)
                 kwargs.pop("top_p", None)
+                response = self.client.chat.completions.create(**kwargs)
+            elif "max_tokens" in err or "output limit" in err:
+                # Reasoning burned the whole cap before producing output; retry once larger.
+                kwargs["max_completion_tokens"] = max(int(kwargs.get("max_completion_tokens") or self.max_tokens), 4096) * 4
                 response = self.client.chat.completions.create(**kwargs)
             else:
                 raise
