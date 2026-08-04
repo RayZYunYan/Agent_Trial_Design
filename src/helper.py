@@ -206,7 +206,7 @@ class ModelCache:
         # never appears. Give it room to finish thinking.
         name = (self.model_name or "").lower()
         if "deepseek-r1" in name or "r1-0528" in name:
-            max_gen = max(max_gen, 2048)
+            max_gen = max(max_gen, 6144)
         gen_kwargs = {
             "model": self.model,
             "tokenizer": self.tokenizer,
