@@ -200,11 +200,18 @@ class ModelCache:
             prompt = self.tokenizer.decode(prompt) if hasattr(self.tokenizer, "decode") else str(prompt)
 
         temp = float(self.temperature) if self.temperature is not None else 0.6
+        max_gen = int(self.max_tokens)
+        # DeepSeek-R1 ignores enable_thinking=False and always emits a <think>
+        # block first; a small cap truncates mid-thought and the visible answer
+        # never appears. Give it room to finish thinking.
+        name = (self.model_name or "").lower()
+        if "deepseek-r1" in name or "r1-0528" in name:
+            max_gen = max(max_gen, 2048)
         gen_kwargs = {
             "model": self.model,
             "tokenizer": self.tokenizer,
             "prompt": prompt,
-            "max_tokens": int(self.max_tokens),
+            "max_tokens": max_gen,
             "verbose": False,
         }
         # Newer mlx-lm: make_sampler(...); older: temp=/top_p= kwargs.
@@ -221,7 +228,7 @@ class ModelCache:
                     response_text = mlx_generate(**gen_kwargs, temp=temp, top_p=float(self.top_p))
             except TypeError:
                 response_text = mlx_generate(
-                    self.model, self.tokenizer, prompt=prompt, max_tokens=int(self.max_tokens), verbose=False
+                    self.model, self.tokenizer, prompt=prompt, max_tokens=max_gen, verbose=False
                 )
 
         response_text = self._strip_thinking(response_text or "")
@@ -305,7 +312,14 @@ class ModelCache:
             cleaned,
             flags=re.DOTALL | re.IGNORECASE,
         )
-        return cleaned.strip() or text.strip()
+        cleaned = cleaned.strip()
+        if cleaned:
+            return cleaned
+        # Entire output was chain-of-thought (generation truncated before the
+        # answer). Returning the raw reasoning would poison downstream parsing
+        # (fragments become "questions", confidence never parses); treat as no
+        # response instead so callers re-prompt.
+        return ""
 
     def huggingface_generate(self, messages):
         device = self._input_device()
