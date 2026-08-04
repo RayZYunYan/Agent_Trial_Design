@@ -1,7 +1,7 @@
 # MediQ Interactive Best — Mac mini (M4 Pro / 48GB) defaults to Apple MLX
 # Doctors:
 #   A = gpt-5.4 | B = claude-sonnet-4-6 | C = gpt-5.6-luna (APIs)
-#   D = Qwen3.5-4B | E = DeepSeek-R1-0528-Qwen3-8B (local mlx-lm 4-bit)
+#   D = Qwen3.5-4B | E = Llama-3.1-8B-Instruct (local mlx-lm 4-bit)
 #
 #   bash mediq_experiment/download_local_models.sh
 #   bash mediq_experiment/run_mac_smoke.sh
@@ -44,8 +44,8 @@ models:
     mlx_name: "mlx-community/Qwen3.5-4B-OptiQ-4bit"
   doctor_e:
     provider: "huggingface"
-    name: "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B"
-    mlx_name: "mlx-community/DeepSeek-R1-0528-Qwen3-8B-4bit"
+    name: "meta-llama/Llama-3.1-8B-Instruct"
+    mlx_name: "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit"
   patient:
     provider: "anthropic"
     name: "claude-haiku-4-5"

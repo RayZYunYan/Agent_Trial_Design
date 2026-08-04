@@ -52,9 +52,9 @@ def test_local_doctors_de(full_cfg):
         assert is_local_provider(p)
         assert api_use_flag(p) is None
     assert "Qwen3.5-4B" in full_cfg["models"]["doctor_d"]["name"]
-    assert "DeepSeek-R1-0528-Qwen3-8B" in full_cfg["models"]["doctor_e"]["name"]
+    assert "Llama-3.1-8B-Instruct" in full_cfg["models"]["doctor_e"]["name"]
     assert "mlx-community" in full_cfg["models"]["doctor_d"]["mlx_name"]
-    assert "DeepSeek-R1-0528-Qwen3-8B" in full_cfg["models"]["doctor_e"]["mlx_name"]
+    assert "Meta-Llama-3.1-8B-Instruct" in full_cfg["models"]["doctor_e"]["mlx_name"]
     assert full_cfg["mediq"].get("use_mlx") is True
 
 

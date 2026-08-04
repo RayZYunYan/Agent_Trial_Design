@@ -8,7 +8,7 @@
 | B | Anthropic | `claude-sonnet-4-6` |
 | C | OpenAI | `gpt-5.6-luna` (API, no download) |
 | D | Local (MLX) | `mlx-community/Qwen3.5-4B-OptiQ-4bit` (from `Qwen/Qwen3.5-4B`) |
-| E | Local (MLX) | `mlx-community/DeepSeek-R1-0528-Qwen3-8B-4bit` (from `deepseek-ai/DeepSeek-R1-0528-Qwen3-8B`) |
+| E | Local (MLX) | `mlx-community/Meta-Llama-3.1-8B-Instruct-4bit` (from `meta-llama/Llama-3.1-8B-Instruct`) |
 | Patient / Judge | Anthropic | `claude-haiku-4-5` |
 
 **Accelerator on Apple Silicon:** `mediq.use_mlx: true` → [`mlx-lm`](https://github.com/ml-explore/mlx-lm) (Metal).  
@@ -73,7 +73,7 @@ python -m pytest mediq_experiment/tests/test_pipeline_config.py -q
 ## Notes
 
 - Doctor C is API-only; D/E need `HF_HOME` weights (`mlx_name` when `use_mlx: true`).
-- Qwen3.5 / DeepSeek-R1 thinking blocks are disabled or stripped in `src/helper.py` for MediQ.
-- Doctor E is DeepSeek-R1 (no Meta Llama license). Prefer the MLX 4-bit mirror (~4.6GB).
+- Qwen3.5 thinking can be disabled via chat template; residual `<think>` blocks are stripped in `src/helper.py`.
+- Doctor E is Llama-3.1-8B-Instruct (Meta license required on HF). Prefer the MLX 4-bit mirror (~4.5GB).
 - `pipeline.skip_existing: true` skips non-empty results/scored/cross files.
 - To force transformers/MPS instead of MLX: set `mediq.use_mlx: false` and download full HF weights (`DOWNLOAD_HF_FULL=1`).

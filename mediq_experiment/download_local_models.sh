@@ -4,9 +4,9 @@
 #   chmod +x mediq_experiment/download_local_models.sh
 #   bash mediq_experiment/download_local_models.sh
 #
-# No Meta Llama license needed. Models:
-#   D: Qwen3.5-4B (OptiQ 4-bit)
-#   E: DeepSeek-R1-0528-Qwen3-8B (4-bit)
+# Models:
+#   D: Qwen3.5-4B (OptiQ 4-bit) — no Meta license
+#   E: Llama-3.1-8B-Instruct (MLX 4-bit) — requires Meta Llama license on HF
 set -euo pipefail
 
 export HF_HOME="${HF_HOME:-$HOME/hf_cache}"
@@ -26,9 +26,9 @@ fi
 hf auth whoami
 
 D_MLX="mlx-community/Qwen3.5-4B-OptiQ-4bit"
-E_MLX="mlx-community/DeepSeek-R1-0528-Qwen3-8B-4bit"
+E_MLX="mlx-community/Meta-Llama-3.1-8B-Instruct-4bit"
 D_HF="Qwen/Qwen3.5-4B"
-E_HF="deepseek-ai/DeepSeek-R1-0528-Qwen3-8B"
+E_HF="meta-llama/Llama-3.1-8B-Instruct"
 
 echo ""
 echo "=== dry-run (sizes) ==="
