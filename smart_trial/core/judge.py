@@ -22,10 +22,13 @@ def build_context_corpus(
     case: Dict[str, Any],
     conversation_history: List[Dict[str, Any]],
 ) -> str:
-    """Chief complaint, case demographics, and doctor opening before first patient reply."""
+    """Doctor-known text before patient answers: initial info, demographics, MCQ, opening."""
     parts: List[str] = []
+    known = (case.get("doctor_known_text") or "").strip()
+    if known:
+        parts.append(known)
     chief = (case.get("chief_complaint") or "").strip()
-    if chief:
+    if chief and chief not in parts:
         parts.append(chief)
     age = case.get("age")
     gender = case.get("gender")
@@ -33,6 +36,14 @@ def build_context_corpus(
         parts.append(str(age).strip())
     if gender is not None and str(gender).strip():
         parts.append(str(gender).strip())
+    inquiry = (case.get("question") or "").strip()
+    if inquiry:
+        parts.append(inquiry)
+    options = case.get("options") or {}
+    if isinstance(options, dict) and options:
+        opt_line = ", ".join(f"{k}: {v}" for k, v in options.items())
+        if opt_line.strip():
+            parts.append(opt_line)
     for msg in conversation_history:
         if msg.get("role") == "assistant":
             content = (msg.get("content") or "").strip()
@@ -60,6 +71,91 @@ def _context_snippet(corpus: str, needle: str, *, window: int = 80) -> str:
     if end < len(corpus):
         snippet = snippet + "..."
     return snippet
+
+
+_CONTEXT_STOPWORDS = frozenset(
+    {
+        "the",
+        "and",
+        "for",
+        "with",
+        "that",
+        "this",
+        "from",
+        "have",
+        "has",
+        "had",
+        "been",
+        "were",
+        "was",
+        "are",
+        "is",
+        "she",
+        "her",
+        "his",
+        "him",
+        "they",
+        "them",
+        "their",
+        "patient",
+        "presents",
+        "comes",
+        "because",
+        "during",
+        "over",
+        "last",
+        "past",
+        "about",
+        "into",
+        "onto",
+        "also",
+        "than",
+        "then",
+        "when",
+        "while",
+        "after",
+        "before",
+        "being",
+        "does",
+        "did",
+        "not",
+        "any",
+        "all",
+        "but",
+        "who",
+        "whom",
+        "which",
+        "what",
+        "there",
+        "here",
+        "very",
+        "more",
+        "most",
+        "some",
+        "such",
+        "only",
+        "other",
+        "into",
+        "out",
+        "up",
+        "down",
+        "of",
+        "to",
+        "in",
+        "on",
+        "at",
+        "by",
+        "an",
+        "or",
+        "as",
+        "a",
+    }
+)
+
+
+def _fact_content_tokens(fact_norm: str) -> List[str]:
+    tokens = re.findall(r"[a-z0-9]+", fact_norm)
+    return [w for w in tokens if len(w) > 2 and w not in _CONTEXT_STOPWORDS]
 
 
 def match_atomic_fact_to_context(
@@ -115,6 +211,15 @@ def match_atomic_fact_to_context(
                 if word in corp_low:
                     anchor = word
                     break
+            return _context_snippet(corpus, anchor)
+
+    # General fallback: fact content is substantially present in doctor-known text
+    # (initial vignette line, opening, or other prompt text given to the doctor).
+    content = _fact_content_tokens(fact_norm)
+    if content:
+        matched = [w for w in content if w in corp_low]
+        if len(matched) / len(content) >= 0.6:
+            anchor = max(matched, key=len)
             return _context_snippet(corpus, anchor)
 
     return None

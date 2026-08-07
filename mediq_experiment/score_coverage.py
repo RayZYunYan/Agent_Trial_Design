@@ -24,14 +24,42 @@ def _case_from_mediq_row(row: Dict[str, Any]) -> Dict[str, Any]:
     info = row.get("info") or {}
     facts = normalize_facts(info.get("facts"))
     initial = (info.get("initial_info") or "").strip()
+    question = str(info.get("question") or "").strip()
+    options = info.get("options") or {}
+    # Everything the MediQ doctor saw before/outside patient answers.
+    known_parts = [p for p in (initial, question) if p]
+    if isinstance(options, dict) and options:
+        known_parts.append(", ".join(f"{k}: {v}" for k, v in options.items()))
+    doctor_known = "\n".join(known_parts)
     return {
         "case_id": str(row.get("id")),
-        "chief_complaint": initial or str(info.get("question") or ""),
+        "chief_complaint": initial or question,
+        "doctor_known_text": doctor_known,
+        "question": question,
         "atomic_facts": facts,
         "ground_truth_answer": info.get("correct_answer"),
         "ground_truth_idx": info.get("correct_answer_idx"),
-        "options": info.get("options") or {},
+        "options": options,
     }
+
+
+def _merge_covered(
+    *batches: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Dedupe covered facts by index, keeping first evidence."""
+    merged: List[Dict[str, Any]] = []
+    seen: set = set()
+    for batch in batches:
+        for item in batch or []:
+            try:
+                idx = int(item.get("index"))
+            except (TypeError, ValueError):
+                continue
+            if idx in seen:
+                continue
+            seen.add(idx)
+            merged.append(item)
+    return merged
 
 
 def score_row(judge: StageJudge, row: Dict[str, Any]) -> Dict[str, Any]:
@@ -54,28 +82,34 @@ def score_row(judge: StageJudge, row: Dict[str, Any]) -> Dict[str, Any]:
             "covered_facts": [],
             "note": "no facts available on this case",
         }
-    elif not history:
-        coverage = {
-            "coverage_rate": 0.0,
-            "coverage_count": 0,
-            "total_facts": len(facts),
-            "covered_facts": [],
-            "note": "empty transcript",
-        }
     else:
-        delta = judge.probe_fact_coverage_incremental(
+        # Count atomic facts already given to the doctor (initial / question / options).
+        context_delta = judge.probe_context_atomic_facts(
             case,
-            new_conversation=history,
             atomic_facts=facts,
             already_covered=[],
-            review_mode=True,
+            conversation_history=history,
         )
-        newly = delta.get("newly_covered") or []
+        context_covered = context_delta.get("newly_covered") or []
+        already = [int(item["index"]) for item in context_covered if item.get("index") is not None]
+
+        dialogue_covered: List[Dict[str, Any]] = []
+        if history:
+            dialogue_delta = judge.probe_fact_coverage_incremental(
+                case,
+                new_conversation=history,
+                atomic_facts=facts,
+                already_covered=already,
+                review_mode=True,
+            )
+            dialogue_covered = dialogue_delta.get("newly_covered") or []
+
+        covered = _merge_covered(context_covered, dialogue_covered)
         coverage = {
-            "coverage_rate": round(len(newly) / len(facts), 4) if facts else 0.0,
-            "coverage_count": len(newly),
+            "coverage_rate": round(len(covered) / len(facts), 4),
+            "coverage_count": len(covered),
             "total_facts": len(facts),
-            "covered_facts": newly,
+            "covered_facts": covered,
         }
 
     out = dict(row)
