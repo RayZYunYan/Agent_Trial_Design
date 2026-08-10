@@ -81,6 +81,8 @@ smart_trial/outputs/*
 smart_trial/q_learning/outputs/
 mediq_experiment/outputs/
 mediq_experiment/outputs_smoke/
+mediq_experiment/outputs_ablation/
+mediq_experiment/outputs_ablation_smoke/
 *.log
 *.log.*
 logs/

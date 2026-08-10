@@ -1,6 +1,7 @@
 """Run upstream MediQ benchmark (src/mediQ_benchmark.py) with hot-swappable models."""
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -95,20 +96,32 @@ def run_mediq_role(
     expert_provider: Optional[str] = None,
     id_min: Optional[int] = None,
     id_max: Optional[int] = None,
+    prepared_cases: Optional[Path] = None,
 ) -> Path:
-    """Prepare subset, run MediQ from ``src/``, return results JSONL path."""
+    """Prepare subset, run MediQ from ``src/``, return results JSONL path.
+
+    Resume: MediQ appends and skips case ids already present in ``results.jsonl``.
+    Re-run the same command after interrupt to continue. Delete results.jsonl to force
+    a full re-run. If ``prepared_cases`` is set, that file is copied as the subset
+    (used by one-shot ablations so all doctors share the same facts).
+    """
     run_dir = ensure_dir(output_dir / role_name)
     subset_path = run_dir / "cases_subset.jsonl"
-    write_subset_jsonl(
-        source_data,
-        subset_path,
-        max_cases,
-        id_min=id_min,
-        id_max=id_max,
-    )
+    if prepared_cases is not None:
+        if not prepared_cases.exists():
+            raise FileNotFoundError(f"prepared_cases not found: {prepared_cases}")
+        ensure_dir(subset_path.parent)
+        shutil.copyfile(prepared_cases, subset_path)
+    else:
+        write_subset_jsonl(
+            source_data,
+            subset_path,
+            max_cases,
+            id_min=id_min,
+            id_max=id_max,
+        )
     out_jsonl = run_dir / "results.jsonl"
 
-    # Resume-friendly: MediQ skips ids already in output. Delete to force re-run.
     cmd = build_mediq_cmd(
         expert_model=expert_model,
         patient_model=patient_model,
@@ -121,7 +134,7 @@ def run_mediq_role(
     )
     print(
         f"\n=== MediQ run: {role_name} (doctor={expert_model}, provider={expert_provider}, "
-        f"id_min={id_min}, id_max={id_max}) ==="
+        f"id_min={id_min}, id_max={id_max}, prepared={prepared_cases is not None}) ==="
     )
     print(" ".join(cmd))
     proc = subprocess.run(cmd, cwd=str(ROOT / "src"), check=False)

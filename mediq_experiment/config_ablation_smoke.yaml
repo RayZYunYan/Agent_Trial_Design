@@ -1,0 +1,55 @@
+# Ablation smoke — 1 case, RandomExpert (no API), verifies pipeline end-to-end
+#
+#   python -m mediq_experiment.run_ablation --config mediq_experiment/config_ablation_smoke.yaml --all-modes
+
+data:
+  source_path: "data/mediQ_cases100-199_claude_ranked.jsonl"
+  id_min: 100
+  id_max: 199
+  max_cases: 1
+
+ablation:
+  seed: 42
+  modes:
+    - base
+    - one_random
+    - two_most_important_claude
+    - two_most_important_gpt
+    - all_facts
+  ranked:
+    claude: "data/mediQ_cases100-199_claude_ranked.jsonl"
+    gpt: "data/mediQ_cases100-199_gpt_ranked.jsonl"
+
+mediq:
+  expert_class: "RandomExpert"
+  patient_class: "FactSelectPatient"
+  max_questions: 0
+  abstain_threshold: 4.0
+  use_api: null
+  use_vllm: false
+  use_mlx: false
+  load_in_4bit: false
+  rationale_generation: false
+  self_consistency: 1
+  temperature: 0.0
+  max_tokens: 32
+
+models:
+  # Single cheap doctor for smoke; RandomExpert ignores the model name for decisions
+  doctor_a:
+    provider: "openai"
+    name: "gpt-5.4"
+  patient:
+    provider: "anthropic"
+    name: "claude-haiku-4-5"
+  judge:
+    provider: "anthropic"
+    name: "claude-haiku-4-5"
+    temperature: 0.1
+
+pipeline:
+  run_mediq: true
+  score_coverage: false
+  cross_finalize: false
+  skip_existing: true
+  output_dir: "mediq_experiment/outputs_ablation_smoke"

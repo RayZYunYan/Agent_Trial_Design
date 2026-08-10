@@ -1,0 +1,70 @@
+# One-shot fact ablation — full Mac run (100 cases, max_questions=0)
+#
+#   bash mediq_experiment/run_ablation_all.sh
+#   bash mediq_experiment/run_ablation_mode.sh base
+
+data:
+  # Used for base / one_random / all_facts (ranked files also contain full facts)
+  source_path: "data/mediQ_cases100-199_claude_ranked.jsonl"
+  id_min: 100
+  id_max: 199
+  max_cases: null
+
+ablation:
+  seed: 42   # one_random: same case_id → same fact for all doctors
+  modes:
+    - base
+    - one_random
+    - two_most_important_claude
+    - two_most_important_gpt
+    - all_facts
+  ranked:
+    claude: "data/mediQ_cases100-199_claude_ranked.jsonl"
+    gpt: "data/mediQ_cases100-199_gpt_ranked.jsonl"
+
+mediq:
+  expert_class: "ScaleExpert"
+  patient_class: "FactSelectPatient"
+  max_questions: 0              # one-shot; pipeline also forces 0
+  abstain_threshold: 4.0
+  use_api: null
+  use_vllm: false
+  use_mlx: true
+  load_in_4bit: false
+  rationale_generation: true
+  self_consistency: 3
+  temperature: 0.6
+  max_tokens: 512
+
+models:
+  doctor_a:
+    provider: "openai"
+    name: "gpt-5.4"
+  doctor_b:
+    provider: "anthropic"
+    name: "claude-sonnet-4-6"
+  doctor_c:
+    provider: "openai"
+    name: "gpt-5.6-luna"
+  doctor_d:
+    provider: "huggingface"
+    name: "Qwen/Qwen3.5-4B"
+    mlx_name: "mlx-community/Qwen3.5-4B-OptiQ-4bit"
+  doctor_e:
+    provider: "huggingface"
+    name: "meta-llama/Llama-3.1-8B-Instruct"
+    mlx_name: "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit"
+  patient:
+    provider: "anthropic"
+    name: "claude-haiku-4-5"
+  judge:
+    provider: "anthropic"
+    name: "claude-haiku-4-5"
+    temperature: 0.1
+
+pipeline:
+  run_mediq: true
+  score_coverage: false
+  cross_finalize: false
+  skip_existing: true
+  output_dir: "mediq_experiment/outputs_ablation"

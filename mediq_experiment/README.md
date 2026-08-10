@@ -1,5 +1,34 @@
 # MediQ multi-doctor experiment (A–E + coverage + full cross)
 
+## One-shot fact ablation (no dialogue)
+
+Tests whether models can answer from **question+options only** or from controlled fact subsets (no `context[0]` initial). Modes: `base`, `one_random`, `two_most_important_claude`, `two_most_important_gpt`, `all_facts`. Cases 100–199. `one_random` uses a fixed seed so **all doctors see the same fact** for a given case.
+
+**Resume / interrupt:** Ctrl+C is safe. Re-run the **same** command; unfinished case ids are skipped inside MediQ, and incomplete doctor/mode runs are re-entered until `results.jsonl` contains all expected ids. Use `--force` only to delete complete results and redo a doctor.
+
+```bash
+# Smoke (1 case, RandomExpert, no API) — verifies end-to-end
+python -m mediq_experiment.run_ablation --config mediq_experiment/config_ablation_smoke.yaml --all-modes
+# or: bash mediq_experiment/run_ablation_smoke.sh
+
+# Dry-run: prepare cases only, print initial_info samples
+python -m mediq_experiment.run_ablation --dry-run --all-modes
+
+# One mode × all doctors (Mac full config)
+python -m mediq_experiment.run_ablation --mode base
+python -m mediq_experiment.run_ablation --mode one_random
+python -m mediq_experiment.run_ablation --mode two_most_important_claude
+python -m mediq_experiment.run_ablation --mode two_most_important_gpt
+python -m mediq_experiment.run_ablation --mode all_facts
+# or: bash mediq_experiment/run_ablation_mode.sh base
+
+# All modes × all doctors (one command)
+python -m mediq_experiment.run_ablation --all-modes
+# or: bash mediq_experiment/run_ablation_all.sh
+```
+
+Outputs: `mediq_experiment/outputs_ablation/{mode}/doctor_*/results.jsonl`
+
 ## Models (Mac mini / M4 Pro default)
 
 | Role | Provider | Model |
