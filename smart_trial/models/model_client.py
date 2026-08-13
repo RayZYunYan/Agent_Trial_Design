@@ -98,7 +98,12 @@ atexit.register(_close_cursor_sdk_client)
 class ModelClient:
     """
     Unified model interface. Swap providers by changing provider + model_name.
-    Supported: groq / openai / anthropic / gemini / mock / cursor_sdk
+    Supported: groq / openai / anthropic / gemini / deepseek / mlx_local / mock / cursor_sdk
+
+    mlx_local targets a local `mlx_lm.server` instance (OpenAI-compatible REST
+    API) for self-hosted models, e.g. Qwen/Llama running via MLX on Apple
+    Silicon. Pass `base_url` (e.g. "http://localhost:8081/v1"); no API key
+    needed.
     """
 
     def __init__(
@@ -107,13 +112,17 @@ class ModelClient:
         model_name: str,
         api_key: Optional[str] = None,
         temperature: float = 0.5,
+        base_url: Optional[str] = None,
     ):
         if provider == "cursor":
             provider = "cursor_sdk"
         self.provider = provider
         self.model_name = model_name
+        self.base_url = base_url
         if self.provider == "cursor_sdk":
             self.api_key = api_key or os.environ.get("CURSOR_API_KEY")
+        elif self.provider == "mlx_local":
+            self.api_key = api_key or "not-needed"
         else:
             self.api_key = api_key or os.environ.get(f"{provider.upper()}_API_KEY")
         self.default_temperature = temperature
@@ -136,6 +145,14 @@ class ModelClient:
         if self.provider == "openai":
             from openai import OpenAI
             return OpenAI(api_key=self.api_key)
+        if self.provider == "deepseek":
+            from openai import OpenAI
+            return OpenAI(api_key=self.api_key, base_url="https://api.deepseek.com")
+        if self.provider == "mlx_local":
+            from openai import OpenAI
+            if not self.base_url:
+                raise ValueError("mlx_local provider requires base_url, e.g. http://localhost:8081/v1")
+            return OpenAI(api_key=self.api_key, base_url=self.base_url)
         if self.provider == "anthropic":
             import anthropic
             return anthropic.Anthropic(api_key=self.api_key)
@@ -231,7 +248,7 @@ class ModelClient:
                 raise RuntimeError("Cursor SDK returned empty result")
             return text
 
-        if self.provider in ("groq", "openai"):
+        if self.provider in ("groq", "openai", "deepseek", "mlx_local"):
             full_messages = []
             if system_prompt:
                 full_messages.append({"role": "system", "content": system_prompt})
@@ -244,9 +261,10 @@ class ModelClient:
             try:
                 response = self._client.chat.completions.create(**kwargs)
             except Exception as e:
-                # Reasoning models (gpt-5*, o-series) only accept the default temperature.
+                # Reasoning models (gpt-5*, o-series) and some newer models
+                # (e.g. gpt-5.6 family) only accept the default temperature.
                 err = str(e).lower()
-                if "temperature" in err and "unsupported" in err:
+                if "temperature" in err and ("does not support" in err or "unsupported" in err):
                     kwargs.pop("temperature", None)
                     response = self._client.chat.completions.create(**kwargs)
                 else:
@@ -256,7 +274,7 @@ class ModelClient:
         if self.provider == "anthropic":
             response = self._client.messages.create(
                 model=self.model_name,
-                max_tokens=1024,
+                max_tokens=4096,
                 system=system_prompt or "",
                 messages=messages,
                 temperature=temp,

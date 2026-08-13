@@ -1,0 +1,61 @@
+# Clinic 5-agent experiment (AI Hospital + 3MDBench, text-only)
+# Agent A: gpt-5.4 | Agent B: claude-sonnet-4-6 | Agent C: gpt-5.6-luna
+# Agent D: Qwen3.5-4B-OptiQ-4bit (local, MLX)  | Agent E: Meta-Llama-3.1-8B-Instruct-4bit (local, MLX)
+# Patient/Reporter/Judge: Claude Haiku 4.5 (Anthropic), shared across all 5 agents
+# so only the diagnosing/dialogue agent varies between runs.
+#
+# Matrix per dataset (rows = information source, cols = who diagnoses):
+#   Base prompt only, Agent A/B/C/D/E dialogue, All facts  x  A/B/C/D/E diagnosis
+#
+# Run:
+#   python -m clinic_experiment.run_pipeline --dataset ai_hospital
+#   python -m clinic_experiment.run_pipeline --dataset mdbench
+
+agents:
+  # - id: "A"          # temporarily skipped, re-enable when ready
+  #   provider: "openai"
+  #   name: "gpt-5.4"
+  - id: "B"
+    provider: "anthropic"
+    name: "claude-sonnet-4-6"
+  # - id: "C"          # temporarily skipped, re-enable when ready
+  #   provider: "openai"
+  #   name: "gpt-5.6-luna"
+  - id: "D"
+    provider: "mlx_local"
+    name: "mlx-community/Qwen3.5-4B-OptiQ-4bit"
+    base_url: "http://localhost:8081/v1"
+  - id: "E"
+    provider: "mlx_local"
+    name: "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit"
+    base_url: "http://localhost:8082/v1"
+
+models:
+  patient:
+    provider: "anthropic"
+    name: "claude-haiku-4-5"
+  reporter:
+    provider: "anthropic"
+    name: "claude-haiku-4-5"
+  judge:
+    provider: "anthropic"
+    name: "claude-haiku-4-5"
+    temperature: 0.0
+
+dialogue:
+  max_conversation_turn: 10   # same default as AI Hospital's own consultation.py
+  temperature: 0.6
+
+data:
+  ai_hospital:
+    source_path: "data/ai_hospital_patients.json"
+    num_cases: 100
+    seed: 42
+  mdbench:
+    hf_dataset: "univanxx/3mdbench"
+    hf_split: "test"
+    num_cases: 100
+    seed: 42
+
+pipeline:
+  output_dir: "clinic_experiment/outputs"
