@@ -1,8 +1,9 @@
 """Standalone script for a collaborator's machine: runs ONLY the
-cross-diagnosis pairs where a LOCAL agent (D=Qwen, E=Llama) is the
-responder, reusing frozen dialogue transcripts already generated (on the
-main machine) for all 5 agents. This offloads the slowest, non-parallelizable
-part of the AI Hospital / 3MDBench matrix to a second machine.
+cross-diagnosis pairs where agent E (Llama) is the responder, reusing frozen
+dialogue transcripts already generated (on the main machine) for all 5
+agents. D (Qwen) stays on the main machine. This offloads half of the
+slowest, non-parallelizable part of the AI Hospital / 3MDBench matrix to a
+second machine.
 
 What you need before running this:
   1. Same repo, same branch (new_dataset), same Python venv set up
@@ -16,10 +17,8 @@ What you need before running this:
   3. Your own ANTHROPIC_API_KEY in .env (used for judging only -- no OpenAI
      key needed, since A/B/C are never called here, only referenced as
      frozen text).
-  4. Both local MLX servers running, same as the main pipeline:
-       python -m mlx_lm.server --model mlx-community/Qwen3.5-4B-OptiQ-4bit \\
-         --port 8081 --chat-template-args '{"enable_thinking":false}' \\
-         --max-tokens 4096 --prompt-cache-size 1
+  4. Only the Llama (E) local MLX server -- no need to run Qwen (D) on your
+     machine:
        python -m mlx_lm.server --model mlx-community/Meta-Llama-3.1-8B-Instruct-4bit \\
          --port 8082 --max-tokens 4096 --prompt-cache-size 1
 
@@ -51,12 +50,11 @@ from clinic_experiment.mdbench_cross_finalize import (
     accuracy as mdbench_accuracy,
 )
 
-# Every (src, dst) pair where dst is a local agent. B->D and B->E may already
-# be done on the main machine -- listed anyway so re-running this script
-# against a fuller data dump later needs no code changes (existing output
-# files are skipped case-by-case, same resume logic as the main pipeline).
+# Only E (Llama) as responder -- D (Qwen) stays on the main machine. B->E may
+# already be done there -- listed anyway so re-running this script against a
+# fuller data dump later needs no code changes (existing output files are
+# skipped case-by-case, same resume logic as the main pipeline).
 PAIRS = [
-    ("A", "D"), ("B", "D"), ("C", "D"), ("E", "D"),
     ("A", "E"), ("B", "E"), ("C", "E"), ("D", "E"),
 ]
 
