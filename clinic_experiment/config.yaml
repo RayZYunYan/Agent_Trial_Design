@@ -12,15 +12,25 @@
 #   python -m clinic_experiment.run_pipeline --dataset mdbench
 
 agents:
-  # - id: "A"          # temporarily skipped, re-enable when ready
-  #   provider: "openai"
-  #   name: "gpt-5.4"
+  # A and C: routed through an Anthropic-compatible relay (aicode007) that
+  # fronts non-Anthropic models under the same wire protocol. Auth token +
+  # base URL are read from AICODE_AUTH_TOKEN / AICODE_BASE_URL in .env so no
+  # credentials live in the repo. Model name comes from the relay's roster.
+  - id: "A"
+    provider: "anthropic"
+    name: "gpt-5.6-sol"
+    base_url: "https://api.aicode007.com"
+    api_key_env: "AICODE_AUTH_TOKEN"
   - id: "B"
     provider: "anthropic"
     name: "claude-sonnet-4-6"
-  # - id: "C"          # temporarily skipped, re-enable when ready
-  #   provider: "openai"
-  #   name: "gpt-5.6-luna"
+    base_url: "https://api.aicode007.com"
+    api_key_env: "AICODE_AUTH_TOKEN"
+  - id: "C"
+    provider: "anthropic"
+    name: "gpt-5.6-sol"
+    base_url: "https://api.aicode007.com"
+    api_key_env: "AICODE_AUTH_TOKEN"
   - id: "D"
     provider: "mlx_local"
     name: "mlx-community/Qwen3.5-4B-OptiQ-4bit"
@@ -34,12 +44,25 @@ models:
   patient:
     provider: "anthropic"
     name: "claude-haiku-4-5"
+    base_url: "https://api.aicode007.com"
+    api_key_env: "AICODE_AUTH_TOKEN"
+    # D2 simulator-condition knobs. Vary ONE at a time, each under its own
+    # --run-id (C0 base = persona null, leak_guard false):
+    #   persona: null | "forthcoming" | "guarded" | free text
+    #   (mdbench: an override REPLACES the dataset temperament; ai_hospital
+    #    has no native persona, so it is appended)
+    persona: null
+    leak_guard: false
   reporter:
     provider: "anthropic"
     name: "claude-haiku-4-5"
+    base_url: "https://api.aicode007.com"
+    api_key_env: "AICODE_AUTH_TOKEN"
   judge:
     provider: "anthropic"
     name: "claude-haiku-4-5"
+    base_url: "https://api.aicode007.com"
+    api_key_env: "AICODE_AUTH_TOKEN"
     temperature: 0.0
 
 dialogue:
@@ -59,3 +82,39 @@ data:
 
 pipeline:
   output_dir: "clinic_experiment/outputs"
+  # Condition namespace: outputs go to outputs/<dataset>/<run_id>/ and the
+  # resolved condition is frozen to run_config.json there. New condition ->
+  # new run_id (or pass --run-id). C0 = base condition.
+  run_id: "C0"
+  # Parallel cases in flight (thread pool; API rows only benefit — the MLX
+  # servers are single-stream and serialize regardless).
+  # Kept low (2) because on a 16 GB unified-memory Mac, higher values plus
+  # MLX weights push the whole system into a memory-pressure freeze.
+  concurrency: 2
+  # The dialogue->cross-diagnosis grid is the expensive block and is not part
+  # of the D2 simulator-sensitivity design; flip on if the transfer cells are
+  # wanted again.
+  cross_finalize: false
+
+# MLX server launch (agents D/E): start with thinking disabled and batched
+# decoding, or Qwen3.5 thinks past the 4096-token completion budget on long
+# prompts and returns empty content (finish_reason=length):
+#   ~/.local/bin/mlx_lm.server --model <hf-id> --port 808X \
+#       --chat-template-args '{"enable_thinking": false}' --decode-concurrency 4
+# (Thinking-on for doctor row D is a legitimate separate condition — if run,
+# give it its own run_id and raise max_tokens.)
+#
+# Doctor-roster expansion notes (2026-08-25): GROQ_API_KEY and GEMINI_API_KEY
+# exist in .env but are EMPTY — fill them (both have free tiers) before adding
+# rows like:
+#   - id: "F"
+#     provider: "gemini"
+#     name: "<pick from ListModels once the key works>"
+#   - id: "G"
+#     provider: "groq"
+#     name: "<pick from /openai/v1/models once the key works>"
+# The Anthropic relay token in .env is restricted to Claude Code clients
+# (503 该分组仅允许 Claude Code 客户端访问 on /v1/messages even with valid model
+# ids like claude-haiku-4-5-20251001) — patient/reporter/judge and agent B need
+# a real Anthropic key (then also delete ANTHROPIC_BASE_URL) or a general-group
+# relay token.
