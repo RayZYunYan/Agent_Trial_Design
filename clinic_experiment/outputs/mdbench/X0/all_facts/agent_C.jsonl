@@ -1,0 +1,10 @@
+{"case_id": "803", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "2404", "diagnosis_text": "herpes", "predicted_diagnosis": "herpes", "correct": true, "judge_parse_failed": false}
+{"case_id": "821", "diagnosis_text": "nail dystrophy", "predicted_diagnosis": "nail dystrophy", "correct": true, "judge_parse_failed": false}
+{"case_id": "943", "diagnosis_text": "dental calculus", "predicted_diagnosis": "dental calculus", "correct": true, "judge_parse_failed": false}
+{"case_id": "363", "diagnosis_text": "chronic lichen", "predicted_diagnosis": "chronic lichen", "correct": false, "judge_parse_failed": false}
+{"case_id": "2130", "diagnosis_text": "abscess", "predicted_diagnosis": "abscess", "correct": true, "judge_parse_failed": false}
+{"case_id": "287", "diagnosis_text": "allergic contact dermatitis", "predicted_diagnosis": "allergic contact dermatitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "1762", "diagnosis_text": "psoriasis", "predicted_diagnosis": "psoriasis", "correct": true, "judge_parse_failed": false}
+{"case_id": "1714", "diagnosis_text": "hives", "predicted_diagnosis": "hives", "correct": false, "judge_parse_failed": false}
+{"case_id": "1589", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}

@@ -1,0 +1,143 @@
+{
+  "dataset": "mdbench",
+  "run_id": "X0",
+  "n_cases": 100,
+  "agents": {
+    "A": "anthropic/gpt-5.6-sol",
+    "B": "anthropic/claude-sonnet-4-6",
+    "C": "anthropic/gpt-5.6-sol",
+    "D": "mlx_local/mlx-community/Qwen3.5-4B-OptiQ-4bit",
+    "E": "mlx_local/mlx-community/Meta-Llama-3.1-8B-Instruct-4bit"
+  },
+  "dialogue_stats": {
+    "A": {
+      "rows": 100,
+      "mean_turns": 5.1,
+      "turn_cap_hits": 1
+    },
+    "B": {
+      "rows": 100,
+      "mean_turns": 5.66,
+      "turn_cap_hits": 3
+    },
+    "C": {
+      "rows": 95,
+      "mean_turns": 5.389473684210526,
+      "turn_cap_hits": 2
+    },
+    "D": {
+      "rows": 10,
+      "mean_turns": 6.6,
+      "turn_cap_hits": 1
+    },
+    "E": {
+      "rows": 9,
+      "mean_turns": 6.555555555555555,
+      "turn_cap_hits": 0
+    }
+  },
+  "matrix": {
+    "base_prompt_only": {
+      "A": {
+        "n": 10,
+        "scored": 10,
+        "correct": 6,
+        "accuracy": 0.6
+      },
+      "B": {
+        "n": 10,
+        "scored": 10,
+        "correct": 6,
+        "accuracy": 0.6
+      },
+      "C": {
+        "n": 10,
+        "scored": 10,
+        "correct": 6,
+        "accuracy": 0.6
+      },
+      "D": {
+        "n": 10,
+        "scored": 10,
+        "correct": 5,
+        "accuracy": 0.5
+      },
+      "E": {
+        "n": 0,
+        "correct": 0,
+        "accuracy": null
+      }
+    },
+    "dialogue_A": {
+      "A": {
+        "n": 100,
+        "scored": 100,
+        "correct": 85,
+        "accuracy": 0.85
+      }
+    },
+    "dialogue_B": {
+      "B": {
+        "n": 100,
+        "scored": 100,
+        "correct": 79,
+        "accuracy": 0.79
+      }
+    },
+    "dialogue_C": {
+      "C": {
+        "n": 95,
+        "scored": 95,
+        "correct": 75,
+        "accuracy": 0.7894736842105263
+      }
+    },
+    "dialogue_D": {
+      "D": {
+        "n": 10,
+        "scored": 10,
+        "correct": 7,
+        "accuracy": 0.7
+      }
+    },
+    "dialogue_E": {
+      "E": {
+        "n": 9,
+        "scored": 9,
+        "correct": 3,
+        "accuracy": 0.3333333333333333
+      }
+    },
+    "all_facts": {
+      "A": {
+        "n": 10,
+        "scored": 10,
+        "correct": 9,
+        "accuracy": 0.9
+      },
+      "B": {
+        "n": 10,
+        "scored": 10,
+        "correct": 8,
+        "accuracy": 0.8
+      },
+      "C": {
+        "n": 10,
+        "scored": 10,
+        "correct": 8,
+        "accuracy": 0.8
+      },
+      "D": {
+        "n": 10,
+        "scored": 10,
+        "correct": 6,
+        "accuracy": 0.6
+      },
+      "E": {
+        "n": 0,
+        "correct": 0,
+        "accuracy": null
+      }
+    }
+  }
+}

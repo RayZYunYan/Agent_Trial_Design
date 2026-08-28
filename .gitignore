@@ -83,8 +83,15 @@ mediq_experiment/outputs/
 mediq_experiment/outputs_smoke/
 mediq_experiment/outputs_ablation/
 mediq_experiment/outputs_ablation_smoke/
-clinic_experiment/outputs/
+clinic_experiment/outputs/*
 clinic_experiment/outputs_*/
+# Un-ignore published run(s). Git cannot re-include a file whose parent
+# directory is ignored, so every ancestor of the kept path must be listed
+# as a negation and only THEN can the child glob match.
+!clinic_experiment/outputs/mdbench/
+clinic_experiment/outputs/mdbench/*
+!clinic_experiment/outputs/mdbench/X0/
+!clinic_experiment/outputs/mdbench/X0/**
 *.log
 *.log.*
 logs/

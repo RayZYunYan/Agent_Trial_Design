@@ -1,0 +1,74 @@
+{
+  "agents": [
+    {
+      "api_key_env": "AICODE_AUTH_TOKEN",
+      "base_url": "https://api.aicode007.com",
+      "id": "A",
+      "name": "gpt-5.6-sol",
+      "provider": "anthropic"
+    },
+    {
+      "api_key_env": "AICODE_AUTH_TOKEN",
+      "base_url": "https://api.aicode007.com",
+      "id": "B",
+      "name": "claude-sonnet-4-6",
+      "provider": "anthropic"
+    },
+    {
+      "api_key_env": "AICODE_AUTH_TOKEN",
+      "base_url": "https://api.aicode007.com",
+      "id": "C",
+      "name": "gpt-5.6-sol",
+      "provider": "anthropic"
+    },
+    {
+      "base_url": "http://localhost:8081/v1",
+      "id": "D",
+      "name": "mlx-community/Qwen3.5-4B-OptiQ-4bit",
+      "provider": "mlx_local"
+    },
+    {
+      "base_url": "http://localhost:8082/v1",
+      "id": "E",
+      "name": "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
+      "provider": "mlx_local"
+    }
+  ],
+  "cross_finalize": false,
+  "data": {
+    "hf_dataset": "univanxx/3mdbench",
+    "hf_split": "test",
+    "num_cases": 100,
+    "seed": 42
+  },
+  "dataset": "mdbench",
+  "dialogue": {
+    "max_conversation_turn": 10,
+    "temperature": 0.6
+  },
+  "models": {
+    "judge": {
+      "api_key_env": "AICODE_AUTH_TOKEN",
+      "base_url": "https://api.aicode007.com",
+      "name": "claude-haiku-4-5",
+      "provider": "anthropic",
+      "temperature": 0.0
+    },
+    "patient": {
+      "api_key_env": "AICODE_AUTH_TOKEN",
+      "base_url": "https://api.aicode007.com",
+      "leak_guard": false,
+      "name": "claude-haiku-4-5",
+      "persona": null,
+      "provider": "anthropic"
+    },
+    "reporter": {
+      "api_key_env": "AICODE_AUTH_TOKEN",
+      "base_url": "https://api.aicode007.com",
+      "name": "claude-haiku-4-5",
+      "provider": "anthropic"
+    }
+  },
+  "seed": 42,
+  "created_at": "2026-08-28T00:16:18.210479+00:00"
+}
