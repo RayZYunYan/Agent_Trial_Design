@@ -8,3 +8,93 @@
 {"case_id": "1762", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
 {"case_id": "1589", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
 {"case_id": "1714", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "1666", "diagnosis_text": "acne", "predicted_diagnosis": "acne", "correct": false, "judge_parse_failed": false}
+{"case_id": "2573", "diagnosis_text": "ingrown nail", "predicted_diagnosis": "ingrown nail", "correct": true, "judge_parse_failed": false}
+{"case_id": "333", "diagnosis_text": "acne", "predicted_diagnosis": "acne", "correct": false, "judge_parse_failed": false}
+{"case_id": "750", "diagnosis_text": "vitiligo", "predicted_diagnosis": "vitiligo", "correct": true, "judge_parse_failed": false}
+{"case_id": "265", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "2889", "diagnosis_text": "keratosis pilaris", "predicted_diagnosis": "keratosis pilaris", "correct": false, "judge_parse_failed": false}
+{"case_id": "1514", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "1628", "diagnosis_text": "acne", "predicted_diagnosis": "acne", "correct": false, "judge_parse_failed": false}
+{"case_id": "2851", "diagnosis_text": "keratosis pilaris", "predicted_diagnosis": "keratosis pilaris", "correct": false, "judge_parse_failed": false}
+{"case_id": "1204", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "40", "diagnosis_text": "conjunctivitis", "predicted_diagnosis": "conjunctivitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "2773", "diagnosis_text": "nail dystrophy", "predicted_diagnosis": "nail dystrophy", "correct": false, "judge_parse_failed": false}
+{"case_id": "599", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "365", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "973", "diagnosis_text": "stomatitis", "predicted_diagnosis": "stomatitis", "correct": false, "judge_parse_failed": false}
+{"case_id": "2463", "diagnosis_text": "conjunctivitis", "predicted_diagnosis": "conjunctivitis", "correct": false, "judge_parse_failed": false}
+{"case_id": "1403", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "885", "diagnosis_text": "nail dystrophy", "predicted_diagnosis": "nail dystrophy", "correct": false, "judge_parse_failed": false}
+{"case_id": "637", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "87", "diagnosis_text": "acne", "predicted_diagnosis": "acne", "correct": true, "judge_parse_failed": false}
+{"case_id": "398", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "2754", "diagnosis_text": "nail dystrophy", "predicted_diagnosis": "nail dystrophy", "correct": false, "judge_parse_failed": false}
+{"case_id": "183", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "2384", "diagnosis_text": "acne", "predicted_diagnosis": "acne", "correct": false, "judge_parse_failed": false}
+{"case_id": "364", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "2819", "diagnosis_text": "stomatitis", "predicted_diagnosis": "stomatitis", "correct": false, "judge_parse_failed": false}
+{"case_id": "2653", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "1474", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "548", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "2853", "diagnosis_text": "keratosis pilaris", "predicted_diagnosis": "keratosis pilaris", "correct": false, "judge_parse_failed": false}
+{"case_id": "2768", "diagnosis_text": "nail dystrophy", "predicted_diagnosis": "nail dystrophy", "correct": false, "judge_parse_failed": false}
+{"case_id": "1231", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "2366", "diagnosis_text": "acne", "predicted_diagnosis": "acne", "correct": false, "judge_parse_failed": false}
+{"case_id": "2424", "diagnosis_text": "acne", "predicted_diagnosis": "acne", "correct": false, "judge_parse_failed": false}
+{"case_id": "243", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "1587", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "1923", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "1095", "diagnosis_text": "stomatitis", "predicted_diagnosis": "stomatitis", "correct": false, "judge_parse_failed": false}
+{"case_id": "1496", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "1251", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "466", "diagnosis_text": "acne", "predicted_diagnosis": "acne", "correct": false, "judge_parse_failed": false}
+{"case_id": "2071", "diagnosis_text": "tonsillitis", "predicted_diagnosis": "tonsillitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "2100", "diagnosis_text": "abscess", "predicted_diagnosis": "abscess", "correct": true, "judge_parse_failed": false}
+{"case_id": "1161", "diagnosis_text": "abscess", "predicted_diagnosis": "abscess", "correct": true, "judge_parse_failed": false}
+{"case_id": "964", "diagnosis_text": "dental calculus", "predicted_diagnosis": "dental calculus", "correct": true, "judge_parse_failed": false}
+{"case_id": "2500", "diagnosis_text": "conjunctivitis", "predicted_diagnosis": "conjunctivitis", "correct": false, "judge_parse_failed": false}
+{"case_id": "1601", "diagnosis_text": "acne", "predicted_diagnosis": "acne", "correct": false, "judge_parse_failed": false}
+{"case_id": "2317", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "2508", "diagnosis_text": "conjunctivitis", "predicted_diagnosis": "conjunctivitis", "correct": false, "judge_parse_failed": false}
+{"case_id": "2588", "diagnosis_text": "acne", "predicted_diagnosis": "acne", "correct": false, "judge_parse_failed": false}
+{"case_id": "2776", "diagnosis_text": "nail dystrophy", "predicted_diagnosis": "nail dystrophy", "correct": false, "judge_parse_failed": false}
+{"case_id": "337", "diagnosis_text": "acne", "predicted_diagnosis": "acne", "correct": false, "judge_parse_failed": false}
+{"case_id": "1534", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "2942", "diagnosis_text": "keratosis pilaris", "predicted_diagnosis": "keratosis pilaris", "correct": false, "judge_parse_failed": false}
+{"case_id": "21", "diagnosis_text": "conjunctivitis", "predicted_diagnosis": "conjunctivitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "775", "diagnosis_text": "vitiligo", "predicted_diagnosis": "vitiligo", "correct": true, "judge_parse_failed": false}
+{"case_id": "1246", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "2023", "diagnosis_text": "tonsillitis", "predicted_diagnosis": "tonsillitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "2935", "diagnosis_text": "keratosis pilaris", "predicted_diagnosis": "keratosis pilaris", "correct": false, "judge_parse_failed": false}
+{"case_id": "668", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "2890", "diagnosis_text": "keratosis pilaris", "predicted_diagnosis": "keratosis pilaris", "correct": false, "judge_parse_failed": false}
+{"case_id": "2255", "diagnosis_text": "acne", "predicted_diagnosis": "acne", "correct": false, "judge_parse_failed": false}
+{"case_id": "1828", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "1071", "diagnosis_text": "stomatitis", "predicted_diagnosis": "stomatitis", "correct": false, "judge_parse_failed": false}
+{"case_id": "1889", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "573", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "863", "diagnosis_text": "nail dystrophy", "predicted_diagnosis": "nail dystrophy", "correct": true, "judge_parse_failed": false}
+{"case_id": "1036", "diagnosis_text": "stomatitis", "predicted_diagnosis": "stomatitis", "correct": false, "judge_parse_failed": false}
+{"case_id": "628", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "827", "diagnosis_text": "nail dystrophy", "predicted_diagnosis": "nail dystrophy", "correct": true, "judge_parse_failed": false}
+{"case_id": "824", "diagnosis_text": "nail dystrophy", "predicted_diagnosis": "nail dystrophy", "correct": true, "judge_parse_failed": false}
+{"case_id": "2097", "diagnosis_text": "abscess", "predicted_diagnosis": "abscess", "correct": true, "judge_parse_failed": false}
+{"case_id": "2211", "diagnosis_text": "conjunctivitis", "predicted_diagnosis": "conjunctivitis", "correct": false, "judge_parse_failed": false}
+{"case_id": "2150", "diagnosis_text": "keratosis pilaris", "predicted_diagnosis": "keratosis pilaris", "correct": false, "judge_parse_failed": false}
+{"case_id": "927", "diagnosis_text": "dental calculus", "predicted_diagnosis": "dental calculus", "correct": true, "judge_parse_failed": false}
+{"case_id": "45", "diagnosis_text": "conjunctivitis", "predicted_diagnosis": "conjunctivitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "2594", "diagnosis_text": "acne", "predicted_diagnosis": "acne", "correct": false, "judge_parse_failed": false}
+{"case_id": "104", "diagnosis_text": "acne", "predicted_diagnosis": "acne", "correct": true, "judge_parse_failed": false}
+{"case_id": "1209", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "2178", "diagnosis_text": "keratosis pilaris", "predicted_diagnosis": "keratosis pilaris", "correct": false, "judge_parse_failed": false}
+{"case_id": "1848", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "1066", "diagnosis_text": "stomatitis", "predicted_diagnosis": "stomatitis", "correct": false, "judge_parse_failed": false}
+{"case_id": "2838", "diagnosis_text": "stomatitis", "predicted_diagnosis": "stomatitis", "correct": false, "judge_parse_failed": false}
+{"case_id": "1665", "diagnosis_text": "acne", "predicted_diagnosis": "acne", "correct": false, "judge_parse_failed": false}
+{"case_id": "1614", "diagnosis_text": "acne", "predicted_diagnosis": "acne", "correct": false, "judge_parse_failed": false}
+{"case_id": "528", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "1454", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "1120", "diagnosis_text": "stomatitis", "predicted_diagnosis": "stomatitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "1431", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "2446", "diagnosis_text": "acne", "predicted_diagnosis": "acne", "correct": false, "judge_parse_failed": false}
