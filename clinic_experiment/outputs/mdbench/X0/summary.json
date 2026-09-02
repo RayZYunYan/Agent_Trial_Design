@@ -31,8 +31,8 @@
       "turn_cap_hits": 17
     },
     "E": {
-      "rows": 58,
-      "mean_turns": 6.982758620689655,
+      "rows": 99,
+      "mean_turns": 6.8686868686868685,
       "turn_cap_hits": 1
     }
   },
@@ -63,10 +63,10 @@
         "accuracy": 0.32
       },
       "E": {
-        "n": 74,
-        "scored": 74,
-        "correct": 16,
-        "accuracy": 0.21621621621621623
+        "n": 100,
+        "scored": 100,
+        "correct": 24,
+        "accuracy": 0.24
       }
     },
     "dialogue_A": {
@@ -75,38 +75,58 @@
         "scored": 100,
         "correct": 85,
         "accuracy": 0.85
-      }
+      },
+      "B": null,
+      "C": null,
+      "D": null,
+      "E": null
     },
     "dialogue_B": {
+      "A": null,
       "B": {
         "n": 100,
         "scored": 100,
         "correct": 79,
         "accuracy": 0.79
-      }
+      },
+      "C": null,
+      "D": null,
+      "E": null
     },
     "dialogue_C": {
+      "A": null,
+      "B": null,
       "C": {
         "n": 100,
         "scored": 100,
         "correct": 78,
         "accuracy": 0.78
-      }
+      },
+      "D": null,
+      "E": null
     },
     "dialogue_D": {
+      "A": null,
+      "B": null,
+      "C": null,
       "D": {
         "n": 100,
         "scored": 100,
         "correct": 58,
         "accuracy": 0.58
-      }
+      },
+      "E": null
     },
     "dialogue_E": {
+      "A": null,
+      "B": null,
+      "C": null,
+      "D": null,
       "E": {
-        "n": 58,
-        "scored": 58,
-        "correct": 27,
-        "accuracy": 0.46551724137931033
+        "n": 99,
+        "scored": 99,
+        "correct": 52,
+        "accuracy": 0.5252525252525253
       }
     },
     "all_facts": {

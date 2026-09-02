@@ -72,3 +72,29 @@
 {"case_id": "1120", "diagnosis_text": "tonsillitis", "predicted_diagnosis": "tonsillitis", "correct": false, "judge_parse_failed": false}
 {"case_id": "1431", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
 {"case_id": "2446", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "2404", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "803", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "821", "diagnosis_text": "onychomycosis", "predicted_diagnosis": "onychomycosis", "correct": false, "judge_parse_failed": false}
+{"case_id": "943", "diagnosis_text": "dental calculus", "predicted_diagnosis": "dental calculus", "correct": true, "judge_parse_failed": false}
+{"case_id": "2130", "diagnosis_text": "stye", "predicted_diagnosis": "stye", "correct": false, "judge_parse_failed": false}
+{"case_id": "363", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "287", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "1762", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "1589", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "1714", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "2573", "diagnosis_text": "onycholysis", "predicted_diagnosis": "onycholysis", "correct": false, "judge_parse_failed": false}
+{"case_id": "1666", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "333", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "750", "diagnosis_text": "vitiligo", "predicted_diagnosis": "vitiligo", "correct": true, "judge_parse_failed": false}
+{"case_id": "2889", "diagnosis_text": "keratosis pilaris", "predicted_diagnosis": "keratosis pilaris", "correct": false, "judge_parse_failed": false}
+{"case_id": "265", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "1514", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "1628", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "1204", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "2851", "diagnosis_text": "keratosis pilaris", "predicted_diagnosis": "keratosis pilaris", "correct": false, "judge_parse_failed": false}
+{"case_id": "40", "diagnosis_text": "conjunctivitis", "predicted_diagnosis": "conjunctivitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "2773", "diagnosis_text": "onychomycosis", "predicted_diagnosis": "onychomycosis", "correct": false, "judge_parse_failed": false}
+{"case_id": "599", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "365", "diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "2463", "diagnosis_text": "conjunctivitis", "predicted_diagnosis": "conjunctivitis", "correct": false, "judge_parse_failed": false}
+{"case_id": "973", "diagnosis_text": "tonsillitis", "predicted_diagnosis": "tonsillitis", "correct": false, "judge_parse_failed": false}
