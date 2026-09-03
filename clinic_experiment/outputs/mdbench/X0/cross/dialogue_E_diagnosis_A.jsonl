@@ -1,0 +1,100 @@
+{"case_id": "2404", "responder_diagnosis_text": "herpes", "predicted_diagnosis": "herpes", "correct": true, "judge_parse_failed": false}
+{"case_id": "803", "responder_diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "943", "responder_diagnosis_text": "gingivitis", "predicted_diagnosis": "gingivitis", "correct": false, "judge_parse_failed": false}
+{"case_id": "821", "responder_diagnosis_text": "nail dystrophy", "predicted_diagnosis": "nail dystrophy", "correct": true, "judge_parse_failed": false}
+{"case_id": "2130", "responder_diagnosis_text": "abscess", "predicted_diagnosis": "abscess", "correct": true, "judge_parse_failed": false}
+{"case_id": "363", "responder_diagnosis_text": "rosacea", "predicted_diagnosis": "rosacea", "correct": false, "judge_parse_failed": false}
+{"case_id": "287", "responder_diagnosis_text": "seborrheic dermatitis", "predicted_diagnosis": "seborrheic dermatitis", "correct": false, "judge_parse_failed": false}
+{"case_id": "1762", "responder_diagnosis_text": "psoriasis", "predicted_diagnosis": "psoriasis", "correct": true, "judge_parse_failed": false}
+{"case_id": "1589", "responder_diagnosis_text": "allergic contact dermatitis", "predicted_diagnosis": "allergic contact dermatitis", "correct": false, "judge_parse_failed": false}
+{"case_id": "1714", "responder_diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "1666", "responder_diagnosis_text": "shingles", "predicted_diagnosis": "shingles", "correct": true, "judge_parse_failed": false}
+{"case_id": "2573", "responder_diagnosis_text": "ingrown nail", "predicted_diagnosis": "ingrown nail", "correct": true, "judge_parse_failed": false}
+{"case_id": "750", "responder_diagnosis_text": "vitiligo", "predicted_diagnosis": "vitiligo", "correct": true, "judge_parse_failed": false}
+{"case_id": "333", "responder_diagnosis_text": "keratosis pilaris", "predicted_diagnosis": "keratosis pilaris", "correct": true, "judge_parse_failed": false}
+{"case_id": "2889", "responder_diagnosis_text": "keratosis pilaris", "predicted_diagnosis": "keratosis pilaris", "correct": false, "judge_parse_failed": false}
+{"case_id": "265", "responder_diagnosis_text": "allergic contact dermatitis", "predicted_diagnosis": "allergic contact dermatitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "1514", "responder_diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "1628", "responder_diagnosis_text": "shingles", "predicted_diagnosis": "shingles", "correct": true, "judge_parse_failed": false}
+{"case_id": "1204", "responder_diagnosis_text": "allergic contact dermatitis", "predicted_diagnosis": "allergic contact dermatitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "40", "responder_diagnosis_text": "conjunctivitis", "predicted_diagnosis": "conjunctivitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "2851", "responder_diagnosis_text": "keratosis pilaris", "predicted_diagnosis": "keratosis pilaris", "correct": false, "judge_parse_failed": false}
+{"case_id": "365", "responder_diagnosis_text": "hives", "predicted_diagnosis": "hives", "correct": false, "judge_parse_failed": false}
+{"case_id": "2773", "responder_diagnosis_text": "onychomycosis", "predicted_diagnosis": "onychomycosis", "correct": false, "judge_parse_failed": false}
+{"case_id": "599", "responder_diagnosis_text": "psoriasis", "predicted_diagnosis": "psoriasis", "correct": true, "judge_parse_failed": false}
+{"case_id": "973", "responder_diagnosis_text": "caries", "predicted_diagnosis": "caries", "correct": true, "judge_parse_failed": false}
+{"case_id": "2463", "responder_diagnosis_text": "chalazion", "predicted_diagnosis": "chalazion", "correct": false, "judge_parse_failed": false}
+{"case_id": "1403", "responder_diagnosis_text": "contact dermatitis", "predicted_diagnosis": "contact dermatitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "885", "responder_diagnosis_text": "onychomycosis", "predicted_diagnosis": "onychomycosis", "correct": false, "judge_parse_failed": false}
+{"case_id": "637", "responder_diagnosis_text": "hives", "predicted_diagnosis": "hives", "correct": true, "judge_parse_failed": false}
+{"case_id": "87", "responder_diagnosis_text": "abscess", "predicted_diagnosis": "abscess", "correct": false, "judge_parse_failed": false}
+{"case_id": "398", "responder_diagnosis_text": "lichen planus", "predicted_diagnosis": "lichen planus", "correct": true, "judge_parse_failed": false}
+{"case_id": "2754", "responder_diagnosis_text": "onychomycosis", "predicted_diagnosis": "onychomycosis", "correct": false, "judge_parse_failed": false}
+{"case_id": "183", "responder_diagnosis_text": "contact dermatitis", "predicted_diagnosis": "contact dermatitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "2384", "responder_diagnosis_text": "shingles", "predicted_diagnosis": "shingles", "correct": true, "judge_parse_failed": false}
+{"case_id": "2819", "responder_diagnosis_text": "gingivitis", "predicted_diagnosis": "gingivitis", "correct": false, "judge_parse_failed": false}
+{"case_id": "364", "responder_diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "2653", "responder_diagnosis_text": "seborrheic dermatitis", "predicted_diagnosis": "seborrheic dermatitis", "correct": false, "judge_parse_failed": false}
+{"case_id": "1474", "responder_diagnosis_text": "contact dermatitis", "predicted_diagnosis": "contact dermatitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "548", "responder_diagnosis_text": "seborrheic dermatitis", "predicted_diagnosis": "seborrheic dermatitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "2853", "responder_diagnosis_text": "keratosis pilaris", "predicted_diagnosis": "keratosis pilaris", "correct": false, "judge_parse_failed": false}
+{"case_id": "2768", "responder_diagnosis_text": "onychomycosis", "predicted_diagnosis": "onychomycosis", "correct": false, "judge_parse_failed": false}
+{"case_id": "1231", "responder_diagnosis_text": "contact dermatitis", "predicted_diagnosis": "contact dermatitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "2424", "responder_diagnosis_text": "shingles", "predicted_diagnosis": "shingles", "correct": true, "judge_parse_failed": false}
+{"case_id": "2366", "responder_diagnosis_text": "herpes", "predicted_diagnosis": "herpes", "correct": true, "judge_parse_failed": false}
+{"case_id": "1587", "responder_diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "243", "responder_diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "1095", "responder_diagnosis_text": "gingivitis", "predicted_diagnosis": "gingivitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "1923", "responder_diagnosis_text": "hives", "predicted_diagnosis": "hives", "correct": true, "judge_parse_failed": false}
+{"case_id": "1496", "responder_diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "1251", "responder_diagnosis_text": "allergic contact dermatitis", "predicted_diagnosis": "allergic contact dermatitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "466", "responder_diagnosis_text": "rosacea", "predicted_diagnosis": "rosacea", "correct": true, "judge_parse_failed": false}
+{"case_id": "2071", "responder_diagnosis_text": "tonsillitis", "predicted_diagnosis": "tonsillitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "2100", "responder_diagnosis_text": "stye", "predicted_diagnosis": "stye", "correct": false, "judge_parse_failed": false}
+{"case_id": "1161", "responder_diagnosis_text": "abscess", "predicted_diagnosis": "abscess", "correct": true, "judge_parse_failed": false}
+{"case_id": "964", "responder_diagnosis_text": "dental calculus", "predicted_diagnosis": "dental calculus", "correct": true, "judge_parse_failed": false}
+{"case_id": "2500", "responder_diagnosis_text": "stye", "predicted_diagnosis": "stye", "correct": true, "judge_parse_failed": false}
+{"case_id": "2317", "responder_diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "1601", "responder_diagnosis_text": "herpes", "predicted_diagnosis": "herpes", "correct": true, "judge_parse_failed": false}
+{"case_id": "2508", "responder_diagnosis_text": "stye", "predicted_diagnosis": "stye", "correct": true, "judge_parse_failed": false}
+{"case_id": "2588", "responder_diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "337", "responder_diagnosis_text": "keratosis pilaris", "predicted_diagnosis": "keratosis pilaris", "correct": true, "judge_parse_failed": false}
+{"case_id": "2776", "responder_diagnosis_text": "onycholysis", "predicted_diagnosis": "onycholysis", "correct": true, "judge_parse_failed": false}
+{"case_id": "1534", "responder_diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": true, "judge_parse_failed": false}
+{"case_id": "2942", "responder_diagnosis_text": "keratosis pilaris", "predicted_diagnosis": "keratosis pilaris", "correct": false, "judge_parse_failed": false}
+{"case_id": "21", "responder_diagnosis_text": "conjunctivitis", "predicted_diagnosis": "conjunctivitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "775", "responder_diagnosis_text": "vitiligo", "predicted_diagnosis": "vitiligo", "correct": true, "judge_parse_failed": false}
+{"case_id": "1246", "responder_diagnosis_text": "allergic contact dermatitis", "predicted_diagnosis": "allergic contact dermatitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "2023", "responder_diagnosis_text": "tonsillitis", "predicted_diagnosis": "tonsillitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "668", "responder_diagnosis_text": "hives", "predicted_diagnosis": "none", "correct": false, "judge_parse_failed": false}
+{"case_id": "2935", "responder_diagnosis_text": "warts", "predicted_diagnosis": "warts", "correct": true, "judge_parse_failed": false}
+{"case_id": "2890", "responder_diagnosis_text": "seborrheic keratosis", "predicted_diagnosis": "seborrheic keratosis", "correct": true, "judge_parse_failed": false}
+{"case_id": "2255", "responder_diagnosis_text": "herpes", "predicted_diagnosis": "herpes", "correct": false, "judge_parse_failed": false}
+{"case_id": "1071", "responder_diagnosis_text": "gingivitis", "predicted_diagnosis": "gingivitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "1828", "responder_diagnosis_text": "hives", "predicted_diagnosis": "hives", "correct": true, "judge_parse_failed": false}
+{"case_id": "573", "responder_diagnosis_text": "psoriasis", "predicted_diagnosis": "psoriasis", "correct": true, "judge_parse_failed": false}
+{"case_id": "863", "responder_diagnosis_text": "nail dystrophy", "predicted_diagnosis": "nail dystrophy", "correct": true, "judge_parse_failed": false}
+{"case_id": "1889", "responder_diagnosis_text": "allergic contact dermatitis", "predicted_diagnosis": "allergic contact dermatitis", "correct": false, "judge_parse_failed": false}
+{"case_id": "1036", "responder_diagnosis_text": "gingivitis", "predicted_diagnosis": "gingivitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "628", "responder_diagnosis_text": "hives", "predicted_diagnosis": "hives", "correct": true, "judge_parse_failed": false}
+{"case_id": "827", "responder_diagnosis_text": "nail dystrophy", "predicted_diagnosis": "nail dystrophy", "correct": true, "judge_parse_failed": false}
+{"case_id": "824", "responder_diagnosis_text": "nail dystrophy", "predicted_diagnosis": "nail dystrophy", "correct": true, "judge_parse_failed": false}
+{"case_id": "2097", "responder_diagnosis_text": "abscess", "predicted_diagnosis": "abscess", "correct": true, "judge_parse_failed": false}
+{"case_id": "2211", "responder_diagnosis_text": "chalazion", "predicted_diagnosis": "chalazion", "correct": true, "judge_parse_failed": false}
+{"case_id": "927", "responder_diagnosis_text": "dental calculus", "predicted_diagnosis": "dental calculus", "correct": true, "judge_parse_failed": false}
+{"case_id": "2150", "responder_diagnosis_text": "actinic keratosis", "predicted_diagnosis": "actinic keratosis", "correct": true, "judge_parse_failed": false}
+{"case_id": "45", "responder_diagnosis_text": "conjunctivitis", "predicted_diagnosis": "conjunctivitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "2594", "responder_diagnosis_text": "hives", "predicted_diagnosis": "hives", "correct": false, "judge_parse_failed": false}
+{"case_id": "104", "responder_diagnosis_text": "rosacea", "predicted_diagnosis": "rosacea", "correct": false, "judge_parse_failed": false}
+{"case_id": "1209", "responder_diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "2178", "responder_diagnosis_text": "actinic keratosis", "predicted_diagnosis": "actinic keratosis", "correct": true, "judge_parse_failed": false}
+{"case_id": "1848", "responder_diagnosis_text": "hives", "predicted_diagnosis": "hives", "correct": true, "judge_parse_failed": false}
+{"case_id": "1066", "responder_diagnosis_text": "gingivitis", "predicted_diagnosis": "gingivitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "2838", "responder_diagnosis_text": "gingivitis", "predicted_diagnosis": "gingivitis", "correct": false, "judge_parse_failed": false}
+{"case_id": "1665", "responder_diagnosis_text": "eczema", "predicted_diagnosis": "eczema", "correct": false, "judge_parse_failed": false}
+{"case_id": "1614", "responder_diagnosis_text": "shingles", "predicted_diagnosis": "shingles", "correct": true, "judge_parse_failed": false}
+{"case_id": "528", "responder_diagnosis_text": "seborrheic dermatitis", "predicted_diagnosis": "seborrheic dermatitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "1454", "responder_diagnosis_text": "allergic contact dermatitis", "predicted_diagnosis": "allergic contact dermatitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "1120", "responder_diagnosis_text": "stomatitis", "predicted_diagnosis": "stomatitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "1431", "responder_diagnosis_text": "contact dermatitis", "predicted_diagnosis": "contact dermatitis", "correct": true, "judge_parse_failed": false}
+{"case_id": "2446", "responder_diagnosis_text": "herpes", "predicted_diagnosis": "herpes", "correct": true, "judge_parse_failed": false}

@@ -94,7 +94,7 @@ pipeline:
   # The dialogue->cross-diagnosis grid is the expensive block and is not part
   # of the D2 simulator-sensitivity design; flip on if the transfer cells are
   # wanted again.
-  cross_finalize: false
+  cross_finalize: true
 
 # MLX server launch (agents D/E): start with thinking disabled and batched
 # decoding, or Qwen3.5 thinks past the 4096-token completion budget on long
