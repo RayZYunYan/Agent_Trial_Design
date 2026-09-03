@@ -190,7 +190,12 @@
         "correct": 58,
         "accuracy": 0.58
       },
-      "E": null
+      "E": {
+        "n": 100,
+        "scored": 100,
+        "correct": 51,
+        "accuracy": 0.51
+      }
     },
     "dialogue_E": {
       "A": {
@@ -211,7 +216,12 @@
         "correct": 67,
         "accuracy": 0.67
       },
-      "D": null,
+      "D": {
+        "n": 100,
+        "scored": 100,
+        "correct": 53,
+        "accuracy": 0.53
+      },
       "E": {
         "n": 100,
         "scored": 100,
