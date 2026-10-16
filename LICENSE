@@ -1,0 +1,33 @@
+Copyright (c) 2026 Zhang, Rui and Xia, Zihan.
+
+This repository records a research project by Zhang, Rui and Xia, Zihan at the USC Viterbi School of Engineering, advised by Liu, Ruishan, with study-design guidance from Li, Dongze. Li, Jiawei took part as a research assistant. Rights in the original materials are reserved by their authors and, where campus policy applies, by their institution. Copyright in a person's own code and writing stays with that person. This file does not assign those rights to anyone else.
+
+"Original materials" means the code, configuration, reports, and lab notebook written for this project. It does not mean the third-party components listed below.
+
+## What is allowed
+
+You may view this repository and cite the report and the lab notebook. A citation should name the authors and point to this repository.
+
+Any other use of the original materials needs prior permission from the authors. That includes copying the original code into another project, redistributing it, and commercial use.
+
+## Research disclaimer
+
+This software and these documents are a research record of completed experiments. They are not a medical device. They have not been cleared or approved for diagnosis, treatment, or any other clinical use.
+
+Model outputs, simulated dialogues, scores, and notebook tables are experimental measurements. They are not medical advice and must not be used to make decisions about a patient. The authors and their institution accept no liability for use of this repository.
+
+THE ORIGINAL MATERIALS ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+
+## Third-party materials
+
+These components keep the licenses chosen by their own authors. Nothing in this file relicenses them.
+
+- `src/` is the MediQ benchmark from https://github.com/stellalisy/mediQ. The MediQ code and the iMEDQA cases used here are under Creative Commons Attribution 4.0 International (CC-BY 4.0). Attribution to the MediQ authors is required for those materials.
+- `data/all_mediq_craft_merged.jsonl` mixes MediQ cases with CRAFT-MD cases. CRAFT-MD remains under its upstream terms.
+- AI Hospital and 3MDBench cases used by `clinic_experiment/` remain under their upstream terms. The checked-in code that runs those experiments is original material. Copies of upstream patient records, if present, are not.
+- MedRAG textbook passages were used to build local retrieval indexes. Those indexes are not part of this repository. The textbooks, including any StatPearls content, remain under their publishers' terms.
+- Model weights (including Llama and Qwen mirrors) are not included. Use of those weights is governed by the model maker's license.
+
+## Trademarks
+
+Names of models, datasets, universities, and upstream projects are used to identify the materials that were studied. Their owners retain those marks.

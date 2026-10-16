@@ -27,13 +27,6 @@ def stage2_propensity(responder: bool, arm: str) -> float:
     return (1.0 / len(pool)) if arm in pool else 0.0
 
 
-def _propensity_vector(df: pd.DataFrame, arms: pd.Series, prop_fn: Callable) -> np.ndarray:
-    out = np.zeros(len(df))
-    for i, (_, row) in enumerate(df.iterrows()):
-        out[i] = prop_fn(row, arms.iloc[i])
-    return out
-
-
 def _stage2_prop(row: pd.Series, arm: str) -> float:
     return stage2_propensity(bool(row["R1_responder"]), arm)
 

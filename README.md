@@ -126,3 +126,7 @@ smart_trial/
   run_encounter.py  CLI entry
 run_encounter.py    thin wrapper at repo root
 ```
+
+## License and disclaimer
+
+Research record from the USC Viterbi School of Engineering. Not a medical device, and not for diagnosis or treatment. Original code, the project report, and the lab notebook are copyright Zhang, Rui and Xia, Zihan, 2026. Li, Jiawei took part as a research assistant. Viewing and citation are allowed; other use needs permission. MediQ code under `src/` and the iMEDQA cases stay under CC-BY 4.0. See [LICENSE](LICENSE). The narrative of the project is [doc/Project_Report.md](doc/Project_Report.md).

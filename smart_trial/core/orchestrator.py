@@ -362,17 +362,6 @@ class TrialOrchestrator:
             temperature=float(cfg.get("temperature", 0.5)),
         )
 
-    @staticmethod
-    def _neutral_r2() -> Dict[str, Any]:
-        return {
-            "final_confidence": 0.5,
-            "avg_confidence": 0.5,
-            "confidence_level": "low",
-            "confidence_scores": [],
-            "R2_category": "low-confidence",
-            "r2_source": "baseline",
-        }
-
     def run_encounter(
         self,
         case: Dict[str, Any],
